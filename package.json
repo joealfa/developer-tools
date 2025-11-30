@@ -1,0 +1,198 @@
+{
+  "name": "developer-tools",
+  "displayName": "developer-tools",
+  "description": "Empowering Developers with Smart, Secure Utilities\nBoost your productivity with lightweight tools for generating UUIDs, GUIDs, secure passwords, and inline code notes. Designed for speed, simplicity, and seamless integration into your daily workflow",
+  "repository": {
+    "url": ""
+  },
+  "icon": "images/icon.png",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.106.1"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "developer-tools.insertUuid",
+        "title": "Insert UUID",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.insertGuid",
+        "title": "Insert GUID (Uppercase)",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.insertUuidCompact",
+        "title": "Insert UUID (Compact)",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.insertGuidCompact",
+        "title": "Insert GUID (Compact, Uppercase)",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.generatePassword",
+        "title": "Generate Password",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.addNote",
+        "title": "Add Note to Line",
+        "category": "Developer Tools",
+        "icon": "$(add)"
+      },
+      {
+        "command": "developer-tools.editNote",
+        "title": "Edit Note",
+        "category": "Developer Tools",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "developer-tools.deleteNote",
+        "title": "Delete Note",
+        "category": "Developer Tools",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "developer-tools.showNotesPanel",
+        "title": "Show Notes Panel",
+        "category": "Developer Tools",
+        "icon": "$(note)"
+      },
+      {
+        "command": "developer-tools.exportNotes",
+        "title": "Export Notes",
+        "category": "Developer Tools",
+        "icon": "$(export)"
+      },
+      {
+        "command": "developer-tools.importNotes",
+        "title": "Import Notes",
+        "category": "Developer Tools",
+        "icon": "$(import)"
+      },
+      {
+        "command": "developer-tools.manageNotesStorage",
+        "title": "Manage Notes Storage",
+        "category": "Developer Tools",
+        "icon": "$(database)"
+      }
+    ],
+    "views": {
+      "developer-tools-notes": [
+        {
+          "type": "webview",
+          "id": "developer-tools.notesTable",
+          "name": "Notes",
+          "icon": "$(note)",
+          "contextualTitle": "Notes"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "developer-tools-notes",
+          "title": "Notes",
+          "icon": "$(note)"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "developer-tools.addNote",
+          "group": "developer-tools@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "developer-tools.editNote",
+          "group": "developer-tools@2",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "developer-tools.deleteNote",
+          "group": "developer-tools@3",
+          "when": "editorTextFocus"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "developer-tools.addNote",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "developer-tools.editNote",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "developer-tools.deleteNote",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "developer-tools.showNotesPanel",
+          "when": "editorIsOpen"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "developer-tools.addNote",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "developer-tools.showNotesPanel",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Developer Tools",
+      "properties": {
+        "developer-tools.notes.autoExport": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically export notes to .vscode/notes.json when changes are made."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.106.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.46.3",
+    "eslint": "^9.39.1",
+    "esbuild": "^0.27.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
