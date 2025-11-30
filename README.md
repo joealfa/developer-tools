@@ -178,6 +178,10 @@ This extension contributes the following settings:
 
 ## Release Notes
 
+### 1.0.0
+- First release
+  - [Developer Tools](https://marketplace.visualstudio.com/items?itemName=joealfa.developer-utilities)
+
 ### 0.0.2
 
 - Added Code Notes feature:
