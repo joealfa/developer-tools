@@ -1,9 +1,10 @@
 {
-  "name": "developer-tools",
-  "displayName": "developer-tools",
+  "name": "developer-utilities",
+  "displayName": "Developer Tools",
   "description": "Empowering Developers with Smart, Secure Utilities\nBoost your productivity with lightweight tools for generating UUIDs, GUIDs, secure passwords, and inline code notes. Designed for speed, simplicity, and seamless integration into your daily workflow",
+  "publisher": "joealfa",
   "repository": {
-    "url": ""
+    "url": "https://github.com/joealfa/developer-tools"
   },
   "icon": "images/icon.png",
   "version": "1.0.0",
