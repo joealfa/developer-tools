@@ -6,7 +6,7 @@
   "repository": {
     "url": "https://github.com/joealfa/developer-tools"
   },
-  "icon": "images/icon.png",
+  "icon": "images/icon.jpg",
   "version": "1.0.0",
   "engines": {
     "vscode": "^1.106.1"
