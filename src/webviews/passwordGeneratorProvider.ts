@@ -4,10 +4,61 @@ import { insertTextIntoEditor } from '../utils';
 import { Icons } from './icons';
 
 /**
- * Get the HTML content for the password generator webview
+ * Password Generator WebView Provider for the sidebar
  */
-function getHtml(initialPassword: string): string {
-	return `<!DOCTYPE html>
+export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
+	public static readonly viewType = 'developer-tools.passwordGenerator';
+
+	constructor(private readonly context: vscode.ExtensionContext) {}
+
+	public resolveWebviewView(
+		webviewView: vscode.WebviewView,
+		_context: vscode.WebviewViewResolveContext,
+		_token: vscode.CancellationToken
+	): void {
+		webviewView.webview.options = {
+			enableScripts: true
+		};
+
+		// Generate initial password
+		const initialPassword = generatePassword(DEFAULT_PASSWORD_OPTIONS);
+		webviewView.webview.html = this.getHtml(initialPassword);
+
+		// Handle messages from the webview
+		webviewView.webview.onDidReceiveMessage(
+			message => {
+				switch (message.command) {
+					case 'generate':
+						const newPassword = generatePassword(message.options as PasswordOptions);
+						webviewView.webview.postMessage({ command: 'updatePassword', password: newPassword });
+						break;
+						
+					case 'copy':
+						vscode.env.clipboard.writeText(message.password);
+						vscode.window.showInformationMessage('Password copied to clipboard!');
+						break;
+						
+					case 'insert':
+						const editor = vscode.window.activeTextEditor;
+						if (editor) {
+							insertTextIntoEditor(editor, message.password);
+							vscode.window.showInformationMessage('Password inserted!');
+						} else {
+							vscode.window.showErrorMessage('No active text editor');
+						}
+						break;
+				}
+			},
+			undefined,
+			this.context.subscriptions
+		);
+	}
+
+	/**
+	 * Get the HTML content for the password generator webview
+	 */
+	private getHtml(initialPassword: string): string {
+		return `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
@@ -19,25 +70,25 @@ function getHtml(initialPassword: string): string {
 		}
 		body {
 			font-family: var(--vscode-font-family);
-			padding: 20px;
+			padding: 12px;
 			color: var(--vscode-foreground);
-			background-color: var(--vscode-editor-background);
+			background-color: var(--vscode-sideBar-background);
 		}
 		.password-display {
 			background-color: var(--vscode-input-background);
 			border: 1px solid var(--vscode-input-border);
 			border-radius: 4px;
-			padding: 16px;
-			margin-bottom: 20px;
+			padding: 12px;
+			margin-bottom: 16px;
 			display: flex;
-			align-items: center;
-			justify-content: space-between;
+			flex-direction: column;
+			gap: 8px;
 		}
 		.password-text {
 			font-family: monospace;
-			font-size: 18px;
+			font-size: 14px;
 			word-break: break-all;
-			flex: 1;
+			line-height: 1.4;
 		}
 		.password-text .number {
 			color: var(--vscode-debugTokenExpression-number);
@@ -47,66 +98,73 @@ function getHtml(initialPassword: string): string {
 		}
 		.icon-buttons {
 			display: flex;
-			gap: 8px;
-			margin-left: 12px;
+			gap: 6px;
+			margin-top: 4px;
 		}
 		.icon-btn {
 			background: transparent;
 			border: none;
 			color: var(--vscode-foreground);
 			cursor: pointer;
-			padding: 8px;
+			padding: 6px;
 			border-radius: 4px;
 			display: flex;
 			align-items: center;
 			justify-content: center;
+			flex: 1;
 		}
 		.icon-btn:hover {
 			background-color: var(--vscode-toolbar-hoverBackground);
 		}
 		.icon-btn svg {
-			width: 18px;
-			height: 18px;
+			width: 16px;
+			height: 16px;
+			margin-right: 4px;
+		}
+		.icon-btn-text {
+			font-size: 11px;
 		}
 		.section {
 			background-color: var(--vscode-input-background);
 			border: 1px solid var(--vscode-input-border);
 			border-radius: 4px;
-			padding: 16px;
-			margin-bottom: 16px;
+			padding: 12px;
+			margin-bottom: 12px;
 		}
 		.section-title {
 			font-weight: bold;
-			margin-bottom: 12px;
+			margin-bottom: 10px;
+			font-size: 12px;
 		}
 		.form-group {
-			margin-bottom: 12px;
+			margin-bottom: 10px;
 		}
 		.form-group label {
 			display: block;
 			margin-bottom: 4px;
-			font-size: 12px;
+			font-size: 11px;
 			color: var(--vscode-descriptionForeground);
 		}
 		input[type="number"] {
 			width: 100%;
-			padding: 8px;
+			padding: 6px;
 			background-color: var(--vscode-input-background);
 			border: 1px solid var(--vscode-input-border);
 			color: var(--vscode-input-foreground);
 			border-radius: 4px;
-			font-size: 14px;
+			font-size: 12px;
 		}
 		.hint {
-			font-size: 11px;
+			font-size: 10px;
 			color: var(--vscode-descriptionForeground);
 			margin-top: 4px;
+			line-height: 1.3;
 		}
 		.checkbox-group {
 			display: flex;
-			flex-wrap: wrap;
-			gap: 16px;
-			margin-bottom: 16px;
+			flex-direction: column;
+			gap: 8px;
+			margin-bottom: 12px;
 		}
 		.checkbox-item {
 			display: flex;
@@ -114,29 +172,32 @@ function getHtml(initialPassword: string): string {
 			gap: 6px;
 		}
 		.checkbox-item input[type="checkbox"] {
-			width: 16px;
-			height: 16px;
+			width: 14px;
+			height: 14px;
 			accent-color: var(--vscode-checkbox-background);
+		}
+		.checkbox-item span {
+			font-size: 12px;
 		}
 		.number-inputs {
 			display: flex;
-			gap: 16px;
+			gap: 8px;
 		}
 		.number-inputs .form-group {
 			flex: 1;
 		}
 		.action-buttons {
 			display: flex;
-			gap: 12px;
-			margin-top: 20px;
+			flex-direction: column;
+			gap: 8px;
+			margin-top: 12px;
 		}
 		.btn {
-			flex: 1;
-			padding: 10px 16px;
+			padding: 8px 12px;
 			border: none;
 			border-radius: 4px;
 			cursor: pointer;
-			font-size: 14px;
+			font-size: 12px;
 		}
 		.btn-primary {
 			background-color: var(--vscode-button-background);
@@ -158,8 +219,14 @@ function getHtml(initialPassword: string): string {
 	<div class="password-display">
 		<span class="password-text" id="passwordDisplay">${initialPassword}</span>
 		<div class="icon-buttons">
-			<button class="icon-btn" id="regenerateBtn" title="Regenerate">${Icons.rotateCcwKey}</button>
-			<button class="icon-btn" id="copyBtn" title="Copy to clipboard">${Icons.clipboardCopy}</button>
+			<button class="icon-btn" id="regenerateBtn" title="Regenerate">
+				${Icons.rotateCcwKey}
+				<span class="icon-btn-text">New</span>
+			</button>
+			<button class="icon-btn" id="copyBtn" title="Copy to clipboard">
+				${Icons.clipboardCopy}
+				<span class="icon-btn-text">Copy</span>
+			</button>
 		</div>
 	</div>
 
@@ -168,7 +235,7 @@ function getHtml(initialPassword: string): string {
 		<div class="form-group">
 			<label for="length">Length</label>
 			<input type="number" id="length" value="14" min="5" max="128">
-			<div class="hint">Value must be between 5 and 128. Use 14 characters or more to generate a strong password.</div>
+			<div class="hint">Between 5 and 128. Use 14+ for strong passwords.</div>
 		</div>
 	</div>
 
@@ -177,39 +244,38 @@ function getHtml(initialPassword: string): string {
 		<div class="checkbox-group">
 			<label class="checkbox-item">
 				<input type="checkbox" id="includeUppercase" checked>
-				<span>A-Z</span>
+				<span>Uppercase (A-Z)</span>
 			</label>
 			<label class="checkbox-item">
 				<input type="checkbox" id="includeLowercase" checked>
-				<span>a-z</span>
+				<span>Lowercase (a-z)</span>
 			</label>
 			<label class="checkbox-item">
 				<input type="checkbox" id="includeNumbers" checked>
-				<span>0-9</span>
+				<span>Numbers (0-9)</span>
 			</label>
 			<label class="checkbox-item">
 				<input type="checkbox" id="includeSpecial" checked>
-				<span>!@#$%^&*</span>
+				<span>Special (!@#$%^&*)</span>
 			</label>
 		</div>
 		<div class="number-inputs">
 			<div class="form-group">
-				<label for="minNumbers">Minimum numbers</label>
+				<label for="minNumbers">Min numbers</label>
 				<input type="number" id="minNumbers" value="1" min="0" max="10">
 			</div>
 			<div class="form-group">
-				<label for="minSpecial">Minimum special</label>
+				<label for="minSpecial">Min special</label>
 				<input type="number" id="minSpecial" value="1" min="0" max="10">
 			</div>
 		</div>
 		<label class="checkbox-item">
 			<input type="checkbox" id="avoidAmbiguous">
-			<span>Avoid ambiguous characters</span>
+			<span>Avoid ambiguous chars</span>
 		</label>
 	</div>
 
 	<div class="action-buttons">
-		<button class="btn btn-secondary" id="copyCloseBtn">Copy & Close</button>
 		<button class="btn btn-primary" id="insertBtn">Insert to Document</button>
 	</div>
 
@@ -252,11 +318,6 @@ function getHtml(initialPassword: string): string {
 			vscode.postMessage({ command: 'copy', password: password });
 		});
 
-		document.getElementById('copyCloseBtn').addEventListener('click', () => {
-			const password = document.getElementById('passwordDisplay').textContent;
-			vscode.postMessage({ command: 'copyAndClose', password: password });
-		});
-
 		document.getElementById('insertBtn').addEventListener('click', () => {
 			const password = document.getElementById('passwordDisplay').textContent;
 			vscode.postMessage({ command: 'insert', password: password });
@@ -280,59 +341,5 @@ function getHtml(initialPassword: string): string {
 	</script>
 </body>
 </html>`;
-}
-
-/**
- * Show the password generator panel
- */
-export function showPasswordGenerator(context: vscode.ExtensionContext): void {
-	// Capture the active editor BEFORE creating the panel
-	const targetEditor = vscode.window.activeTextEditor;
-
-	const panel = vscode.window.createWebviewPanel(
-		'passwordGenerator',
-		'Password Generator',
-		vscode.ViewColumn.Beside,
-		{
-			enableScripts: true
-		}
-	);
-
-	// Generate initial password
-	const initialPassword = generatePassword(DEFAULT_PASSWORD_OPTIONS);
-	panel.webview.html = getHtml(initialPassword);
-
-	// Handle messages from the webview
-	panel.webview.onDidReceiveMessage(
-		message => {
-			switch (message.command) {
-				case 'generate':
-					const newPassword = generatePassword(message.options as PasswordOptions);
-					panel.webview.postMessage({ command: 'updatePassword', password: newPassword });
-					break;
-					
-				case 'copy':
-					vscode.env.clipboard.writeText(message.password);
-					vscode.window.showInformationMessage('Password copied to clipboard!');
-					break;
-					
-				case 'copyAndClose':
-					vscode.env.clipboard.writeText(message.password);
-					vscode.window.showInformationMessage('Password copied to clipboard!');
-					panel.dispose();
-					break;
-					
-				case 'insert':
-					if (targetEditor) {
-						insertTextIntoEditor(targetEditor, message.password);
-						panel.dispose();
-					} else {
-						vscode.window.showErrorMessage('No active text editor was open when password generator was launched');
-					}
-					break;
-			}
-		},
-		undefined,
-		context.subscriptions
-	);
+	}
 }

@@ -9,7 +9,7 @@ import {
 	NotesWorkspaceTracker,
 	NotesExportService,
 } from './notes';
-import { NotesPanel, NotesTableProvider } from './webviews';
+import { NotesPanel, NotesTableProvider, PasswordGeneratorProvider, NoteEditorProvider } from './webviews';
 import { ExtensionState } from './extensionState';
 
 /**
@@ -36,28 +36,49 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Initialize Notes Panel
 	const notesPanel = NotesPanel.getInstance(context, notesService);
 
+	// Initialize Note Editor Provider for secondary sidebar
+	const noteEditorProvider = new NoteEditorProvider(context, notesService);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			NoteEditorProvider.viewType,
+			noteEditorProvider
+		)
+	);
+
 	// Wire up cursor tracker with panel for focus management
 	notesPanel.setCursorTracker(cursorTracker);
 
 	// Set up cursor tracker to show/hide notes panel
-	cursorTracker.setVisibilityCallback((show, filePath, lineNumber) => {
+	cursorTracker.setVisibilityCallback(async (show, filePath, lineNumber) => {
 		if (show && filePath !== null && lineNumber !== null) {
-			notesPanel.show(filePath, lineNumber);
+			// Show in secondary sidebar instead of panel (will auto-close if no notes)
+			await noteEditorProvider.showForLine(filePath, lineNumber);
 		} else {
-			notesPanel.hide();
+			// Hide when moving away from notes
+			await noteEditorProvider.hide();
 		}
 	});
 
-	// Store cursor tracker in shared state for commands to access
+	// Store cursor tracker and note editor provider in shared state for commands to access
 	ExtensionState.setCursorTracker(cursorTracker);
+	ExtensionState.setNoteEditorProvider(noteEditorProvider);
 
-	// Register Notes Table Provider for bottom panel
+	// Register Notes Table Provider
 	const notesTableProvider = new NotesTableProvider(context, notesService);
-	notesTableProvider.setNotesPanel(notesPanel); // Wire up panel for navigation
+	notesTableProvider.setNoteEditorProvider(noteEditorProvider); // Wire up for navigation
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
 			NotesTableProvider.viewType,
 			notesTableProvider
+		)
+	);
+
+	// Register Password Generator Provider for sidebar
+	const passwordGeneratorProvider = new PasswordGeneratorProvider(context);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			PasswordGeneratorProvider.viewType,
+			passwordGeneratorProvider
 		)
 	);
 

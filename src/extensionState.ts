@@ -4,12 +4,14 @@
  */
 
 import { NotesCursorTracker } from './notes';
+import type { NoteEditorProvider } from './webviews/noteEditorProvider';
 
 /**
  * Shared extension state
  */
 class ExtensionState {
     private static _cursorTracker: NotesCursorTracker | null = null;
+    private static _noteEditorProvider: NoteEditorProvider | null = null;
 
     static setCursorTracker(tracker: NotesCursorTracker): void {
         this._cursorTracker = tracker;
@@ -19,8 +21,17 @@ class ExtensionState {
         return this._cursorTracker;
     }
 
+    static setNoteEditorProvider(provider: NoteEditorProvider): void {
+        this._noteEditorProvider = provider;
+    }
+
+    static getNoteEditorProvider(): NoteEditorProvider | null {
+        return this._noteEditorProvider;
+    }
+
     static reset(): void {
         this._cursorTracker = null;
+        this._noteEditorProvider = null;
     }
 }
 

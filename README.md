@@ -4,6 +4,8 @@ A collection of useful development utilities for Visual Studio Code.
 
 ## Features
 
+All tools are accessible from the **Developer Tools** icon in the Activity Bar (sidebar).
+
 ### UUID/GUID Generation
 
 Insert UUIDs or GUIDs at your cursor position with a single command. Perfect for generating unique identifiers in your code, configuration files, or documentation.
@@ -25,7 +27,7 @@ When you select text spanning multiple lines and run a UUID/GUID command, it wil
 
 ### Password Generator
 
-Generate secure, customizable passwords directly in VS Code.
+Generate secure, customizable passwords directly in VS Code's sidebar.
 
 **Command:** `Developer Tools: Generate Password`
 
@@ -44,10 +46,10 @@ Generate secure, customizable passwords directly in VS Code.
 
 **Usage:**
 
-1. Open the Command Palette (`Ctrl+Shift+P` on Windows/Linux, `Cmd+Shift+P` on macOS)
-2. Type "Developer Tools: Generate Password"
-3. Configure your password requirements in the panel
-4. Click "Copy & Close" or "Insert to Document"
+1. Click the Developer Tools icon in the Activity Bar
+2. Expand the "Password Generator" section
+3. Configure your password requirements
+4. Click "Copy" or "Insert to Document"
 
 ### Code Notes
 
@@ -57,11 +59,11 @@ Add persistent notes to specific lines in your code files. Notes are stored per-
 
 - **Line-attached notes** - Add notes to any line in your code files (.ts, .js, .tsx, .jsx, .cs, etc.)
 - **Categories** - Organize notes as Note, TODO, FIXME, or Question with color-coded icons
-- **Auto-show/hide panel** - Side panel automatically appears when cursor is on a line with notes
+- **Inline Note Editor** - Edit notes directly in the sidebar when clicking on lines with notes
 - **Line tracking** - Notes automatically move when you insert or delete lines above them
 - **Orphaned note detection** - Notes are marked as "orphaned" when their original line content changes
 - **File rename tracking** - Notes follow files when renamed or moved within the workspace
-- **Bottom panel table** - View all notes across your project in a searchable, filterable table
+- **Notes Table** - View all notes across your project in a searchable, filterable list
 - **Search & filter** - Filter notes by category, status, or search text
 - **Grouping** - Group notes by file, category, or status
 - **Bulk operations** - Delete all orphaned notes or clear all notes at once
@@ -70,27 +72,27 @@ Add persistent notes to specific lines in your code files. Notes are stored per-
 
 **Available Commands:**
 
-| Command | Keyboard Shortcut | Description |
-|---------|-------------------|-------------|
-| Add Note | `Ctrl+Alt+N` | Add a note to the current line |
-| Edit Note | - | Edit notes on the current line |
-| Delete Note | - | Delete notes from the current line |
-| Show Notes Panel | `Ctrl+Alt+Shift+N` | Show the notes side panel |
-| Export Notes | - | Export all notes to a JSON file |
-| Import Notes | - | Import notes from a JSON file |
-| Manage Notes Storage | - | View storage stats and migrate storage |
+| Command               | Keyboard Shortcut | Description                              |
+|-----------------------|-------------------|------------------------------------------|
+| Add Note              | `Ctrl+Alt+N`      | Add a note to the current line           |
+| Edit Note             | -                 | Edit notes on the current line           |
+| Delete Note           | -                 | Delete notes from the current line       |
+| Show Notes Panel      | `Ctrl+Alt+M`      | Show the notes list in sidebar           |
+| Export Notes          | -                 | Export all notes to a JSON file          |
+| Import Notes          | -                 | Import notes from a JSON file            |
+| Manage Notes Storage  | -                 | View storage stats and migrate storage   |
 
 **Usage:**
 
 1. Place your cursor on the line where you want to add a note
 2. Press `Ctrl+Alt+N` or run "Developer Tools: Add Note" from the Command Palette
-3. Enter your note text and select a category
+3. Enter your note text and select a category in the Note Editor panel
 4. Click "Add Note" to save
 
 **Viewing Notes:**
 
-- **Side Panel**: Automatically shows when your cursor is on a line with notes
-- **Bottom Panel**: Click the "Notes" tab in the panel area (alongside Terminal, Problems, etc.) to see all notes
+- **Note Editor**: Expand "Note Editor" in the Developer Tools sidebar to edit notes for the current line
+- **Notes Table**: Expand "Notes" in the Developer Tools sidebar to see all notes with filtering and grouping
 - **Gutter Icons**: Look for colored icons in the editor gutter indicating lines with notes
 
 **Storage:**
@@ -99,8 +101,8 @@ Notes are stored in VS Code's workspace state. If storage reaches 95% capacity, 
 
 ## Usage
 
-1. Place your cursor where you want to insert a UUID/GUID or password
-2. Open the Command Palette (`Ctrl+Shift+P` on Windows/Linux, `Cmd+Shift+P` on macOS)
+1. Click the **Developer Tools** icon in the Activity Bar to access all tools
+2. For commands, open the Command Palette (`Ctrl+Shift+P` on Windows/Linux, `Cmd+Shift+P` on macOS)
 3. Type "Developer Tools" to see all available commands
 4. Select the desired command
 
@@ -151,20 +153,20 @@ This extension includes default keyboard shortcuts for notes functionality. You 
 
 ### Available Command IDs
 
-| Command | ID |
-|---------|-----|
-| Insert UUID | `developer-tools.insertUuid` |
-| Insert UUID (Compact) | `developer-tools.insertUuidCompact` |
-| Insert GUID (Uppercase) | `developer-tools.insertGuid` |
-| Insert GUID (Compact, Uppercase) | `developer-tools.insertGuidCompact` |
-| Generate Password | `developer-tools.generatePassword` |
-| Add Note | `developer-tools.addNote` |
-| Edit Note | `developer-tools.editNote` |
-| Delete Note | `developer-tools.deleteNote` |
-| Show Notes Panel | `developer-tools.showNotesPanel` |
-| Export Notes | `developer-tools.exportNotes` |
-| Import Notes | `developer-tools.importNotes` |
-| Manage Notes Storage | `developer-tools.manageNotesStorage` |
+| Command                          | ID                                   |
+|----------------------------------|--------------------------------------|
+| Insert UUID                      | `developer-tools.insertUuid`         |
+| Insert UUID (Compact)            | `developer-tools.insertUuidCompact`  |
+| Insert GUID (Uppercase)          | `developer-tools.insertGuid`         |
+| Insert GUID (Compact, Uppercase) | `developer-tools.insertGuidCompact`  |
+| Generate Password                | `developer-tools.generatePassword`   |
+| Add Note                         | `developer-tools.addNote`            |
+| Edit Note                        | `developer-tools.editNote`           |
+| Delete Note                      | `developer-tools.deleteNote`         |
+| Show Notes Panel                 | `developer-tools.showNotesPanel`     |
+| Export Notes                     | `developer-tools.exportNotes`        |
+| Import Notes                     | `developer-tools.importNotes`        |
+| Manage Notes Storage             | `developer-tools.manageNotesStorage` |
 
 ## Requirements
 
@@ -174,32 +176,26 @@ No external dependencies required. This extension uses Node.js built-in `crypto`
 
 This extension contributes the following settings:
 
-- `developer-tools.notes.autoShowPanel`: Automatically show notes panel when cursor is on a line with notes (default: `true`)
+- `developer-tools.notes.autoExport`: Automatically export notes to `.vscode/notes.json` when changes are made (default: `false`)
 
 ## Release Notes
 
+### 1.0.1
+- Activity Bar integration with consolidated Developer Tools sidebar
+- Password Generator moved to sidebar for quick access
+- Inline Note Editor for editing notes directly in sidebar
+- Redesigned Notes Table with cleaner row-based layout
+- Code architecture improvements
+
 ### 1.0.0
-- First release
-  - [Developer Tools](https://marketplace.visualstudio.com/items?itemName=joealfa.developer-utilities)
+- First stable release
+- [Developer Tools on VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=joealfa.developer-utilities)
 
 ### 0.0.2
-
-- Added Code Notes feature:
-  - Add persistent notes to specific lines in code files
-  - Categories: Note, TODO, FIXME, Question
-  - Automatic line tracking when code is edited
-  - File rename/delete tracking
-  - Orphaned note detection and re-anchoring
-  - Bottom panel with searchable notes table
-  - Import/Export functionality
-  - Gutter decorations for lines with notes
+- Code Notes feature with line tracking, categories, and import/export
 
 ### 0.0.1
-
-Initial release:
-- UUID/GUID generation (standard and compact formats)
-- Multiple cursor and selection support
-- Password generator with customizable options
+- Initial release with UUID/GUID generation and Password Generator
 
 ---
 

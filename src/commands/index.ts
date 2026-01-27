@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { generateUuid, generateGuid, generateUuidCompact, generateGuidCompact } from '../generators';
 import { insertTextAtCursor } from '../utils';
-import { showPasswordGenerator, NotesPanel } from '../webviews';
 import { 
 	NotesService, 
 	NotesExportService 
@@ -46,35 +45,38 @@ const commands: CommandDefinition[] = [
 	},
 	{
 		id: 'developer-tools.generatePassword',
-		handler: (context) => {
-			showPasswordGenerator(context);
+		handler: async () => {
+			// Open the Developer Tools sidebar and focus on Password Generator view
+			await vscode.commands.executeCommand('developer-tools.passwordGenerator.focus');
 		}
 	},
 	// Notes commands
 	{
 		id: 'developer-tools.addNote',
-		handler: (context) => {
+		handler: async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor || editor.document.uri.scheme !== 'file') {
 				vscode.window.showErrorMessage('Please open a file to add a note.');
 				return;
 			}
 
-			const notesService = NotesService.getInstance();
-			const notesPanel = NotesPanel.getInstance(context, notesService);
+			const noteEditorProvider = ExtensionState.getNoteEditorProvider();
 			const cursorTracker = ExtensionState.getCursorTracker();
 			
-			// Force show the panel for current position
+			// Force show the editor for current position
 			cursorTracker?.forceShow();
 			
 			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
 			const lineNumber = editor.selection.active.line;
-			notesPanel.show(filePath, lineNumber);
+			
+			if (noteEditorProvider) {
+				await noteEditorProvider.showForLine(filePath, lineNumber);
+			}
 		}
 	},
 	{
 		id: 'developer-tools.editNote',
-		handler: (context) => {
+		handler: async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor || editor.document.uri.scheme !== 'file') {
 				vscode.window.showErrorMessage('Please open a file to edit notes.');
@@ -90,8 +92,10 @@ const commands: CommandDefinition[] = [
 				return;
 			}
 
-			const notesPanel = NotesPanel.getInstance(context, notesService);
-			notesPanel.show(filePath, lineNumber);
+			const noteEditorProvider = ExtensionState.getNoteEditorProvider();
+			if (noteEditorProvider) {
+				await noteEditorProvider.showForLine(filePath, lineNumber);
+			}
 		}
 	},
 	{
@@ -145,18 +149,9 @@ const commands: CommandDefinition[] = [
 	},
 	{
 		id: 'developer-tools.showNotesPanel',
-		handler: (context) => {
-			const editor = vscode.window.activeTextEditor;
-			if (!editor || editor.document.uri.scheme !== 'file') {
-				vscode.window.showInformationMessage('Open a file to view notes.');
-				return;
-			}
-
-			const notesService = NotesService.getInstance();
-			const notesPanel = NotesPanel.getInstance(context, notesService);
-			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
-			const lineNumber = editor.selection.active.line;
-			notesPanel.show(filePath, lineNumber);
+		handler: async () => {
+			// Open the Developer Tools sidebar and focus on Notes view
+			await vscode.commands.executeCommand('developer-tools.notesTable.focus');
 		}
 	},
 	{

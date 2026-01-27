@@ -14,7 +14,7 @@ import {
     STATUS_CONFIG,
 } from '../notes';
 import { Icons } from './icons';
-import { NotesPanel } from './notesPanel';
+import type { NoteEditorProvider } from './noteEditorProvider';
 
 /**
  * WebviewViewProvider for the notes table in the bottom panel
@@ -26,7 +26,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     private notesService: NotesService;
     private context: vscode.ExtensionContext;
     private disposables: vscode.Disposable[] = [];
-    private notesPanel: NotesPanel | null = null;
+    private noteEditorProvider: NoteEditorProvider | null = null;
 
     // Current filter/group state
     private searchText: string = '';
@@ -48,10 +48,10 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Set the notes panel reference for navigation
+     * Set the note editor provider reference for navigation
      */
-    setNotesPanel(panel: NotesPanel): void {
-        this.notesPanel = panel;
+    setNoteEditorProvider(provider: NoteEditorProvider): void {
+        this.noteEditorProvider = provider;
     }
 
     /**
@@ -191,9 +191,9 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 vscode.TextEditorRevealType.InCenter
             );
 
-            // Show the notes panel with keepOpen=true so it doesn't close when navigating
-            if (this.notesPanel) {
-                this.notesPanel.show(note.filePath, note.lineNumber, true);
+            // Show the note editor in secondary sidebar
+            if (this.noteEditorProvider) {
+                await this.noteEditorProvider.showForLine(note.filePath, note.lineNumber);
             }
         } catch (error) {
             vscode.window.showErrorMessage(`Could not open file: ${note.filePath}`);
@@ -441,37 +441,54 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             background-color: var(--vscode-button-secondaryBackground);
             color: var(--vscode-button-secondaryForeground);
         }
-        .table-container {
-            overflow-x: auto;
+        .notes-container {
+            padding: 4px;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        .note-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-bottom: 1px solid var(--vscode-widget-border);
+            cursor: pointer;
             font-size: 11px;
         }
-        th, td {
-            padding: 6px 8px;
-            text-align: left;
-            border-bottom: 1px solid var(--vscode-widget-border);
-        }
-        th {
-            background-color: var(--vscode-editor-background);
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-        }
-        tr:hover {
+        .note-row:hover {
             background-color: var(--vscode-list-hoverBackground);
         }
-        tr.clickable {
-            cursor: pointer;
+        .note-checkbox-col {
+            flex-shrink: 0;
+        }
+        .note-status-col {
+            flex-shrink: 0;
+        }
+        .note-content-col {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .note-first-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .note-second-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .note-actions-col {
+            flex-shrink: 0;
         }
         .group-header {
             background-color: var(--vscode-editor-background);
             font-weight: 600;
-        }
-        .group-header td {
             padding: 8px;
+            border-bottom: 1px solid var(--vscode-widget-border);
         }
         .group-toggle {
             cursor: pointer;
@@ -500,18 +517,16 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         .status-orphaned {
             color: var(--vscode-inputValidation-warningForeground);
         }
-        .file-path {
-            max-width: 200px;
+        .note-file {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .preview {
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: var(--vscode-descriptionForeground);
+        .note-line {
+            flex-shrink: 0;
+        }
+        .note-date {
+            flex-shrink: 0;
         }
         .action-btn {
             background: transparent;
@@ -686,36 +701,17 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         const rows: string[] = [];
         let groupIndex = 0;
 
-        rows.push(`
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 30px;">
-                        <input type="checkbox" onchange="toggleSelectAll(this.checked)" title="Select all">
-                    </th>
-                    <th style="width: 30px;"></th>
-                    <th>Category</th>
-                    <th>File</th>
-                    <th style="width: 50px;">Line</th>
-                    <th>Preview</th>
-                    <th style="width: 80px;">Created</th>
-                    <th style="width: 60px;"></th>
-                </tr>
-            </thead>
-            <tbody>
-        `);
+        rows.push('<div class="notes-container">');
 
         for (const [groupName, notes] of groupedNotes) {
             const groupId = `group-${groupIndex++}`;
             
             if (this.groupBy !== 'none') {
                 rows.push(`
-                <tr class="group-header">
-                    <td colspan="8">
-                        <span class="group-toggle" onclick="toggleGroup('${groupId}')" id="toggle-${groupId}">▼</span>
-                        ${this.escapeHtml(groupName)} (${notes.length})
-                    </td>
-                </tr>
+                <div class="group-header">
+                    <span class="group-toggle" onclick="toggleGroup('${groupId}')" id="toggle-${groupId}">▼</span>
+                    ${this.escapeHtml(groupName)} (${notes.length})
+                </div>
                 `);
             }
 
@@ -724,42 +720,43 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 const isOrphaned = note.status === 'orphaned';
                 const isSelected = this.selectedNotes.has(note.id);
                 const createdDate = new Date(note.createdAt).toLocaleDateString();
-                const preview = note.text.substring(0, 50) + (note.text.length > 50 ? '...' : '');
 
                 rows.push(`
-                <tr class="clickable" data-group="${groupId}" onclick="navigateToNote('${note.id}')">
-                    <td onclick="event.stopPropagation()">
+                <div class="note-row" data-group="${groupId}" onclick="navigateToNote('${note.id}')">
+                    <div class="note-checkbox-col" onclick="event.stopPropagation()">
                         <input type="checkbox" class="note-checkbox" 
                                ${isSelected ? 'checked' : ''} 
                                onchange="toggleSelection('${note.id}', this.checked)">
-                    </td>
-                    <td>
+                    </div>
+                    <div class="note-status-col">
                         <span class="status-icon ${isOrphaned ? 'status-orphaned' : ''}" title="${isOrphaned ? 'Orphaned' : 'Active'}">
                             ${isOrphaned ? '⚠️' : '✓'}
                         </span>
-                    </td>
-                    <td>
-                        <span class="category-badge category-${note.category}">
-                            ${this.getCategoryIcon(note.category)} ${categoryConfig.label}
-                        </span>
-                    </td>
-                    <td class="file-path" title="${this.escapeHtml(note.filePath)}">
-                        ${this.escapeHtml(note.filePath)}
-                    </td>
-                    <td>${note.lineNumber + 1}</td>
-                    <td class="preview" title="${this.escapeHtml(note.text)}">
-                        ${this.escapeHtml(preview)}
-                    </td>
-                    <td>${createdDate}</td>
-                    <td>
+                    </div>
+                    <div class="note-content-col">
+                        <div class="note-first-row">
+                            <span class="category-badge category-${note.category}">
+                                ${this.getCategoryIcon(note.category)} ${categoryConfig.label}
+                            </span>
+                            <span class="note-file" title="${this.escapeHtml(note.filePath)}">
+                                ${this.escapeHtml(note.filePath)}
+                            </span>
+                        </div>
+                        <div class="note-second-row">
+                            <span class="note-line">Line ${note.lineNumber + 1}</span>
+                            <span>•</span>
+                            <span class="note-date">${createdDate}</span>
+                        </div>
+                    </div>
+                    <div class="note-actions-col">
                         <button class="action-btn danger" onclick="deleteNote('${note.id}', event)" title="Delete">${Icons.trash2.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"')}</button>
-                    </td>
-                </tr>
+                    </div>
+                </div>
                 `);
             }
         }
 
-        rows.push('</tbody></table>');
+        rows.push('</div>');
         return rows.join('');
     }
 
