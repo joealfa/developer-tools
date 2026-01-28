@@ -209,7 +209,9 @@ export class NotesPanel implements vscode.Disposable {
         }
 
         const editor = vscode.window.activeTextEditor;
-        const lineContent = editor?.document.lineAt(this.currentLineNumber).text ?? '';
+        const lineContent = (editor && this.currentLineNumber < editor.document.lineCount)
+            ? editor.document.lineAt(this.currentLineNumber).text
+            : '';
         const surroundingContext = this.getSurroundingContext(editor?.document, this.currentLineNumber);
 
         await this.notesService.create({
@@ -261,7 +263,9 @@ export class NotesPanel implements vscode.Disposable {
         }
 
         const editor = vscode.window.activeTextEditor;
-        const lineContent = editor?.document.lineAt(this.currentLineNumber).text ?? '';
+        const lineContent = (editor && this.currentLineNumber < editor.document.lineCount)
+            ? editor.document.lineAt(this.currentLineNumber).text
+            : '';
         const surroundingContext = this.getSurroundingContext(editor?.document, this.currentLineNumber);
 
         await this.notesService.reanchor(

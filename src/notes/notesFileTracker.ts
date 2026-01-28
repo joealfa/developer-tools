@@ -4,7 +4,6 @@
  */
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { NotesService } from './notesService';
 
 /**
@@ -53,7 +52,7 @@ export class NotesFileTracker implements vscode.Disposable {
                 const allNotes = this.notesService.getAll();
                 for (const note of allNotes) {
                     if (note.filePath.startsWith(oldPath + '/') || note.filePath === oldPath) {
-                        const updatedPath = note.filePath.replace(oldPath, newPath);
+                        const updatedPath = newPath + note.filePath.slice(oldPath.length);
                         pathUpdates.push({ oldPath: note.filePath, newPath: updatedPath });
                     }
                 }

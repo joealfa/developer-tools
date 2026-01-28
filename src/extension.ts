@@ -52,10 +52,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	cursorTracker.setVisibilityCallback(async (show, filePath, lineNumber) => {
 		if (show && filePath !== null && lineNumber !== null) {
 			// Show in secondary sidebar instead of panel (will auto-close if no notes)
-			await noteEditorProvider.showForLine(filePath, lineNumber);
+			// Don't steal focus - this is an automatic update based on cursor position
+			await noteEditorProvider.showForLine(filePath, lineNumber, false);
 		} else {
-			// Hide when moving away from notes
-			await noteEditorProvider.hide();
+			// If Note Editor is active, just update the line instead of hiding
+			// This allows users to add notes to lines without existing notes
+			if (noteEditorProvider.isNoteEditorActive() && filePath !== null && lineNumber !== null) {
+				noteEditorProvider.updateLine(filePath, lineNumber);
+			} else {
+				// Hide when moving away from notes and editor is not active
+				await noteEditorProvider.hide();
+			}
 		}
 	});
 

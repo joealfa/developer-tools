@@ -42,9 +42,22 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         // Listen to notes changes
         this.disposables.push(
             this.notesService.onDidChangeNotes(() => {
+                this.pruneSelection();
                 this.refresh();
             })
         );
+    }
+
+    private pruneSelection(): void {
+        if (this.selectedNotes.size === 0) {
+            return;
+        }
+
+        for (const id of Array.from(this.selectedNotes)) {
+            if (!this.notesService.getById(id)) {
+                this.selectedNotes.delete(id);
+            }
+        }
     }
 
     /**
@@ -101,26 +114,34 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     private async handleMessage(message: any): Promise<void> {
         switch (message.command) {
             case 'navigate':
-                await this.navigateToNote(message.noteId);
+                await this.navigateToNote(message.noteId, false);
+                break;
+
+            case 'openEditor':
+                await this.navigateToNote(message.noteId, true);
                 break;
 
             case 'search':
                 this.searchText = message.text;
+                this.selectedNotes.clear();
                 this.refresh();
                 break;
 
             case 'filterCategory':
                 this.categoryFilter = message.category;
+                this.selectedNotes.clear();
                 this.refresh();
                 break;
 
             case 'filterStatus':
                 this.statusFilter = message.status;
+                this.selectedNotes.clear();
                 this.refresh();
                 break;
 
             case 'groupBy':
                 this.groupBy = message.groupBy;
+                this.selectedNotes.clear();
                 this.refresh();
                 break;
 
@@ -144,14 +165,17 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 
             case 'deleteSelected':
                 await this.deleteSelectedNotes();
+                this.refresh();
                 break;
 
             case 'changeCategorySelected':
                 await this.changeCategoryForSelected(message.category);
+                this.refresh();
                 break;
 
             case 'deleteNote':
                 await this.deleteNote(message.noteId);
+                this.refresh();
                 break;
 
             case 'refresh':
@@ -161,20 +185,26 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Navigate to a note's location and show the side panel
+     * Navigate to a note's location and optionally show the note editor
      */
-    private async navigateToNote(noteId: string): Promise<void> {
+    private async navigateToNote(noteId: string, showEditor: boolean): Promise<void> {
         const note = this.notesService.getById(noteId);
         if (!note) {
             return;
         }
 
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return;
+        // Determine the file URI - handle both absolute and relative paths
+        let fileUri: vscode.Uri;
+        const isAbsolute = /^[a-zA-Z]:[\\/]|^\//.test(note.filePath);
+        if (isAbsolute) {
+            fileUri = vscode.Uri.file(note.filePath);
+        } else {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                return;
+            }
+            fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, note.filePath);
         }
-
-        const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, note.filePath);
 
         try {
             const document = await vscode.workspace.openTextDocument(fileUri);
@@ -191,8 +221,8 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 vscode.TextEditorRevealType.InCenter
             );
 
-            // Show the note editor in secondary sidebar
-            if (this.noteEditorProvider) {
+            // Show the note editor in secondary sidebar only on double-click
+            if (showEditor && this.noteEditorProvider) {
                 await this.noteEditorProvider.showForLine(note.filePath, note.lineNumber);
             }
         } catch (error) {
@@ -591,7 +621,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     </div>
 
     <div class="bulk-actions ${this.selectedNotes.size === 0 ? 'hidden' : ''}" id="bulkActions">
-        <span>${this.selectedNotes.size} selected</span>
+        <span id="selectedCount">${this.selectedNotes.size} selected</span>
         <select class="filter-select" id="bulkCategory">
             <option value="">Change Category...</option>
             ${changeCategoryOptions}
@@ -642,9 +672,14 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // Navigation
+        // Navigation (single click - navigate to line only)
         function navigateToNote(noteId) {
             vscode.postMessage({ command: 'navigate', noteId });
+        }
+
+        // Open note editor (double click - navigate and show editor)
+        function openNoteEditor(noteId) {
+            vscode.postMessage({ command: 'openEditor', noteId });
         }
 
         // Selection
@@ -660,6 +695,11 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         function updateBulkActions() {
             const checkboxes = document.querySelectorAll('.note-checkbox:checked');
             const bulkActions = document.getElementById('bulkActions');
+            const selectedCount = document.getElementById('selectedCount');
+
+            if (selectedCount) {
+                selectedCount.textContent = checkboxes.length + ' selected';
+            }
             if (checkboxes.length > 0) {
                 bulkActions.classList.remove('hidden');
             } else {
@@ -722,7 +762,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 const createdDate = new Date(note.createdAt).toLocaleDateString();
 
                 rows.push(`
-                <div class="note-row" data-group="${groupId}" onclick="navigateToNote('${note.id}')">
+                <div class="note-row" data-group="${groupId}" onclick="navigateToNote('${note.id}')" ondblclick="openNoteEditor('${note.id}')">
                     <div class="note-checkbox-col" onclick="event.stopPropagation()">
                         <input type="checkbox" class="note-checkbox" 
                                ${isSelected ? 'checked' : ''} 

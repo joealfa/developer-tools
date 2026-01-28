@@ -40,6 +40,31 @@ const CHARSETS = {
 };
 
 /**
+ * Select a random character from a charset using cryptographic RNG.
+ * Uses rejection sampling to avoid modulo bias.
+ */
+function secureRandomChar(charset: string): string {
+	const maxValid = 256 - (256 % charset.length);
+	let byte: number;
+	do {
+		byte = randomBytes(1)[0];
+	} while (byte >= maxValid);
+	return charset[byte % charset.length];
+}
+
+/**
+ * Generate a cryptographically random integer in [0, max) using rejection sampling.
+ */
+function secureRandomInt(max: number): number {
+	const maxValid = 256 - (256 % max);
+	let byte: number;
+	do {
+		byte = randomBytes(1)[0];
+	} while (byte >= maxValid);
+	return byte % max;
+}
+
+/**
  * Generate a password based on options
  */
 export function generatePassword(options: PasswordOptions): string {
@@ -50,26 +75,26 @@ export function generatePassword(options: PasswordOptions): string {
 		const set = options.avoidAmbiguous ? CHARSETS.uppercaseNoAmbiguous : CHARSETS.uppercase;
 		chars += set;
 	}
-	
+
 	if (options.includeLowercase) {
 		const set = options.avoidAmbiguous ? CHARSETS.lowercaseNoAmbiguous : CHARSETS.lowercase;
 		chars += set;
 	}
-	
+
 	if (options.includeNumbers) {
 		const set = options.avoidAmbiguous ? CHARSETS.numbersNoAmbiguous : CHARSETS.numbers;
 		chars += set;
-		// Add minimum required numbers
+		// Add minimum required numbers using secure RNG
 		for (let i = 0; i < options.minNumbers; i++) {
-			requiredChars.push(set[Math.floor(Math.random() * set.length)]);
+			requiredChars.push(secureRandomChar(set));
 		}
 	}
-	
+
 	if (options.includeSpecial) {
 		chars += CHARSETS.special;
-		// Add minimum required special characters
+		// Add minimum required special characters using secure RNG
 		for (let i = 0; i < options.minSpecial; i++) {
-			requiredChars.push(CHARSETS.special[Math.floor(Math.random() * CHARSETS.special.length)]);
+			requiredChars.push(secureRandomChar(CHARSETS.special));
 		}
 	}
 
@@ -77,18 +102,15 @@ export function generatePassword(options: PasswordOptions): string {
 		return '';
 	}
 
-	// Generate random bytes for password
-	const randomBytesBuffer = randomBytes(options.length);
+	// Fill password with cryptographically random characters (no modulo bias)
 	const password: string[] = [];
-
-	// Fill with random characters
 	for (let i = 0; i < options.length; i++) {
-		password.push(chars[randomBytesBuffer[i] % chars.length]);
+		password.push(secureRandomChar(chars));
 	}
 
-	// Insert required characters at random positions
+	// Insert required characters at cryptographically random positions
 	for (const reqChar of requiredChars) {
-		const pos = Math.floor(Math.random() * options.length);
+		const pos = secureRandomInt(options.length);
 		password[pos] = reqChar;
 	}
 

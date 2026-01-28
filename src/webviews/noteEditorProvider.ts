@@ -19,6 +19,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     private disposables: vscode.Disposable[] = [];
     private currentFilePath: string | null = null;
     private currentLineNumber: number | null = null;
+    private isActive: boolean = false;
+    private cursorTrackingDisposable: vscode.Disposable | undefined;
+    private showAddForm: boolean = false;
 
     constructor(context: vscode.ExtensionContext, notesService: NotesService) {
         this.context = context;
@@ -30,29 +33,68 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
                 this.refresh();
             })
         );
+
+        // Listen to window state changes to reset form when user switches back to editor
+        this.disposables.push(
+            vscode.window.onDidChangeWindowState((state) => {
+                if (state.focused) {
+                    // Window regained focus - if we're showing add form, reset it
+                    if (this.showAddForm) {
+                        this.showAddForm = false;
+                        this.updateContent();
+                    }
+                }
+            })
+        );
+
+        // Listen to active text editor changes to reset form when user switches to editor
+        this.disposables.push(
+            vscode.window.onDidChangeActiveTextEditor((editor) => {
+                if (editor && editor.document.uri.scheme === 'file' && this.showAddForm) {
+                    // User switched to a file editor - reset the add form flag
+                    this.showAddForm = false;
+                    this.updateContent();
+                }
+            })
+        );
     }
 
     /**
      * Show note editor for a specific file and line
+     * @param shouldFocus - Whether to focus the Note Editor view (default: true)
      */
-    public async showForLine(filePath: string, lineNumber: number): Promise<void> {
+    public async showForLine(filePath: string, lineNumber: number, shouldFocus: boolean = true): Promise<void> {
         this.currentFilePath = filePath;
         this.currentLineNumber = lineNumber;
+        this.isActive = true;
+        this.showAddForm = shouldFocus; // Show form when explicitly invoked
 
-        // Check if there are notes for this line
-        const notes = this.notesService.getByLine(filePath, lineNumber);
-        
-        if (notes.length === 0) {
-            // No notes available, update content to show empty state
-            this.updateContent();
-            return;
+        if (shouldFocus) {
+            // Use the VS Code focus command to reveal the view.
+            // This works even if the view hasn't been resolved yet —
+            // VS Code will resolve it, then resolveWebviewView picks up the current state.
+            await vscode.commands.executeCommand('developer-tools.noteEditor.focus');
         }
 
-        // Focus the note editor view in the Developer Tools sidebar
-        await vscode.commands.executeCommand('developer-tools.noteEditor.focus');
-        
-        // Update content after view is focused
+        // Update content after focus so the view is guaranteed to exist
         this.updateContent();
+    }
+
+    /**
+     * Update the current line being tracked (without focusing)
+     */
+    public updateLine(filePath: string, lineNumber: number): void {
+        this.currentFilePath = filePath;
+        this.currentLineNumber = lineNumber;
+        this.showAddForm = false; // Don't show form on automatic updates
+        this.updateContent();
+    }
+
+    /**
+     * Check if the Note Editor is currently active
+     */
+    public isNoteEditorActive(): boolean {
+        return this.isActive;
     }
 
     /**
@@ -61,6 +103,8 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     public async hide(): Promise<void> {
         this.currentFilePath = null;
         this.currentLineNumber = null;
+        this.isActive = false;
+        this.showAddForm = false;
         
         // Update to show empty state
         if (this.view) {
@@ -99,10 +143,28 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 
         // Refresh when view becomes visible
         webviewView.onDidChangeVisibility(() => {
-            if (webviewView.visible && this.currentFilePath !== null && this.currentLineNumber !== null) {
-                this.updateContent();
+            if (webviewView.visible) {
+                // Start background cursor tracking when visible
+                this.startCursorTracking();
+                if (this.currentFilePath !== null && this.currentLineNumber !== null) {
+                    this.updateContent();
+                } else {
+                    // Initialize with current editor position
+                    this.updateFromCurrentEditor();
+                }
+            } else {
+                // Stop tracking when hidden to save resources
+                this.stopCursorTracking();
+                // Reset add form flag when view loses visibility
+                this.showAddForm = false;
             }
         });
+
+        // Start tracking if view is already visible
+        if (webviewView.visible) {
+            this.startCursorTracking();
+            this.updateFromCurrentEditor();
+        }
     }
 
     /**
@@ -139,7 +201,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
             case 'addNote':
                 // Get the line content from the active editor
                 const editor = vscode.window.activeTextEditor;
-                const lineContent = editor?.document.lineAt(this.currentLineNumber).text || '';
+                const lineContent = (editor && this.currentLineNumber < editor.document.lineCount)
+                    ? editor.document.lineAt(this.currentLineNumber).text
+                    : '';
                 
                 await this.notesService.create({
                     filePath: this.currentFilePath,
@@ -148,6 +212,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
                     text: message.text,
                     category: message.category as NoteCategory
                 });
+                
+                // Reset showAddForm after adding note
+                this.showAddForm = false;
                 break;
 
             case 'updateNote':
@@ -390,8 +457,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 
     ${existingNotesHtml}
 
+    ${notes.length > 0 || this.showAddForm ? `
     <div class="add-note-section">
-        <div class="section-title">Add New Note</div>
+        <div class="section-title">${notes.length > 0 ? 'Add Another Note' : 'Add Note'}</div>
         <div class="form-group">
             <label for="newNoteText">Note</label>
             <textarea id="newNoteText" class="note-text" placeholder="Enter your note..."></textarea>
@@ -404,9 +472,30 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
         </div>
         <button class="btn" onclick="addNote()">Add Note</button>
     </div>
+    ` : `
+    <div style="text-align: center; padding: 40px 20px; color: var(--vscode-descriptionForeground);">
+        ${Icons.notepadText}
+        <p style="margin-top: 16px; font-size: 12px;">
+            No notes on this line
+        </p>
+        <p style="margin-top: 8px; font-size: 11px; opacity: 0.7;">
+            Use the "Add Note" command to create one
+        </p>
+    </div>
+    `}
 
     <script>
         const vscode = acquireVsCodeApi();
+
+        // Never auto-focus - let users manually click into the form
+        ${false ? `
+        setTimeout(() => {
+            const el = document.getElementById('newNoteText');
+            if (el) {
+                el.focus();
+            }
+        }, 0);
+        ` : '// No auto-focus'}
 
         function addNote() {
             const text = document.getElementById('newNoteText').value.trim();
@@ -424,6 +513,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 
             // Clear form
             document.getElementById('newNoteText').value = '';
+
+            // Keep focus so users can quickly add multiple notes.
+            document.getElementById('newNoteText').focus();
         }
 
         function updateNote(noteId) {
@@ -493,9 +585,73 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Update from current editor without any focus commands
+     */
+    private updateFromCurrentEditor(): void {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.uri.scheme !== 'file') {
+            return;
+        }
+
+        const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
+        const lineNumber = editor.selection.active.line;
+        
+        this.currentFilePath = filePath;
+        this.currentLineNumber = lineNumber;
+        this.updateContent();
+    }
+
+    /**
+     * Start background cursor tracking (never steals focus)
+     */
+    private startCursorTracking(): void {
+        // Avoid duplicate listeners
+        if (this.cursorTrackingDisposable) {
+            return;
+        }
+
+        this.cursorTrackingDisposable = vscode.window.onDidChangeTextEditorSelection((event) => {
+            const editor = event.textEditor;
+
+            // Only track file editors
+            if (editor.document.uri.scheme !== 'file') {
+                return;
+            }
+
+            const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
+            const lineNumber = event.selections[0].active.line;
+
+            // User interacted with the text editor, so hide the add form
+            const formWasVisible = this.showAddForm;
+            if (this.showAddForm) {
+                this.showAddForm = false;
+            }
+
+            // Update if position changed or form visibility changed
+            if (this.currentFilePath !== filePath || this.currentLineNumber !== lineNumber || formWasVisible) {
+                this.currentFilePath = filePath;
+                this.currentLineNumber = lineNumber;
+                // Only update HTML content - NEVER call focus commands
+                this.updateContent();
+            }
+        });
+    }
+
+    /**
+     * Stop cursor tracking
+     */
+    private stopCursorTracking(): void {
+        if (this.cursorTrackingDisposable) {
+            this.cursorTrackingDisposable.dispose();
+            this.cursorTrackingDisposable = undefined;
+        }
+    }
+
+    /**
      * Dispose of resources
      */
     dispose(): void {
+        this.stopCursorTracking();
         this.disposables.forEach(d => d.dispose());
     }
 }

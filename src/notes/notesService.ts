@@ -299,10 +299,6 @@ export class NotesService implements vscode.Disposable {
      */
     async updateFilePath(oldPath: string, newPath: string): Promise<number> {
         const notes = this.getByFile(oldPath);
-        const updates = notes.map(note => ({
-            id: note.id,
-            options: { filePath: newPath } as UpdateNoteOptions & { filePath: string },
-        }));
 
         // Manually update file paths since it's not in UpdateNoteOptions
         for (const note of notes) {

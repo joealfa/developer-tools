@@ -61,16 +61,13 @@ const commands: CommandDefinition[] = [
 			}
 
 			const noteEditorProvider = ExtensionState.getNoteEditorProvider();
-			const cursorTracker = ExtensionState.getCursorTracker();
-			
-			// Force show the editor for current position
-			cursorTracker?.forceShow();
 			
 			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
 			const lineNumber = editor.selection.active.line;
 			
+			// Always show the Note Editor with add form, without stealing focus
 			if (noteEditorProvider) {
-				await noteEditorProvider.showForLine(filePath, lineNumber);
+				await noteEditorProvider.showForLine(filePath, lineNumber, true);
 			}
 		}
 	},

@@ -217,7 +217,7 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
 	<div class="password-display">
-		<span class="password-text" id="passwordDisplay">${initialPassword}</span>
+		<span class="password-text" id="passwordDisplay">${this.escapeHtml(initialPassword)}</span>
 		<div class="icon-buttons">
 			<button class="icon-btn" id="regenerateBtn" title="Regenerate">
 				${Icons.rotateCcwKey}
@@ -295,14 +295,24 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 			};
 		}
 
+		function escapeChar(c) {
+			if (c === '&') return '&amp;';
+			if (c === '<') return '&lt;';
+			if (c === '>') return '&gt;';
+			if (c === '"') return '&quot;';
+			if (c === "'") return '&#039;';
+			return c;
+		}
+
 		function highlightPassword(password) {
 			return password.split('').map(char => {
+				const safe = escapeChar(char);
 				if (/[0-9]/.test(char)) {
-					return '<span class="number">' + char + '</span>';
+					return '<span class="number">' + safe + '</span>';
 				} else if (/[!@#$%^&*]/.test(char)) {
-					return '<span class="special">' + char + '</span>';
+					return '<span class="special">' + safe + '</span>';
 				}
-				return char;
+				return safe;
 			}).join('');
 		}
 
@@ -341,5 +351,17 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 	</script>
 </body>
 </html>`;
+	}
+
+	/**
+	 * Escape HTML special characters to prevent XSS
+	 */
+	private escapeHtml(text: string): string {
+		return text
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#039;');
 	}
 }

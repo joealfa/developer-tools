@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { NotesService } from './notesService';
 
 /**
@@ -296,17 +297,10 @@ export class NotesLineTracker implements vscode.Disposable {
     }
 
     /**
-     * Hash content for comparison
+     * Hash content for comparison (must match NotesService.hashContent)
      */
     private hashContent(content: string): string {
-        // Simple hash for content comparison
-        let hash = 0;
-        for (let i = 0; i < content.length; i++) {
-            const char = content.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return hash.toString(16);
+        return crypto.createHash('md5').update(content).digest('hex');
     }
 
     /**

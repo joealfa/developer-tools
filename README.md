@@ -180,6 +180,17 @@ This extension contributes the following settings:
 
 ## Release Notes
 
+### 1.0.2
+- Click a note in the Notes Table to navigate to its file and line
+- Double-click a note to navigate and open the Note Editor
+- Note Editor now properly focuses when adding notes via context menu
+- Add-note form hides when focus returns to the code editor
+- Password generator now uses fully cryptographic RNG (no `Math.random()`)
+- Fixed line tracker hash mismatch that incorrectly orphaned notes on edits
+- Fixed crash when adding notes after lines are deleted
+- Fixed folder rename path corruption bug
+- XSS hardening in password display
+
 ### 1.0.1
 - Activity Bar integration with consolidated Developer Tools sidebar
 - Password Generator moved to sidebar for quick access
