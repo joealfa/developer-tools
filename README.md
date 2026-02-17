@@ -58,7 +58,7 @@ Add persistent notes to specific lines in your code files. Notes are stored per-
 **Features:**
 
 - **Line-attached notes** - Add notes to any line in your code files (.ts, .js, .tsx, .jsx, .cs, etc.)
-- **Categories** - Organize notes as Note, TODO, FIXME, or Question with color-coded icons
+- **Categories** - Organize notes as Note, ToDo, FixMe, or Question with color-coded icons
 - **Inline Note Editor** - Edit notes directly in the sidebar when clicking on lines with notes
 - **Line tracking** - Notes automatically move when you insert or delete lines above them
 - **Orphaned note detection** - Notes are marked as "orphaned" when their original line content changes
@@ -179,6 +179,12 @@ This extension contributes the following settings:
 - `developer-tools.notes.autoExport`: Automatically export notes to `.vscode/notes.json` when changes are made (default: `false`)
 
 ## Release Notes
+
+### 1.0.3
+- SVG Lucide icons replace emojis in category/status dropdowns and gutter decorations
+- Updated category labels: ToDo, FixMe
+- Removed legacy Notes Panel (replaced by Note Editor + Notes Table in 1.0.1)
+- Code cleanup: deduplicated shared utilities, removed unused code
 
 ### 1.0.2
 - Click a note in the Notes Table to navigate to its file and line

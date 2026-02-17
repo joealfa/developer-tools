@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { generatePassword, DEFAULT_PASSWORD_OPTIONS, PasswordOptions } from '../generators';
-import { insertTextIntoEditor } from '../utils';
+import { insertTextIntoEditor, escapeHtml } from '../utils';
 import { Icons } from './icons';
 
 /**
@@ -186,38 +186,11 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 		.number-inputs .form-group {
 			flex: 1;
 		}
-		.action-buttons {
-			display: flex;
-			flex-direction: column;
-			gap: 8px;
-			margin-top: 12px;
-		}
-		.btn {
-			padding: 8px 12px;
-			border: none;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 12px;
-		}
-		.btn-primary {
-			background-color: var(--vscode-button-background);
-			color: var(--vscode-button-foreground);
-		}
-		.btn-primary:hover {
-			background-color: var(--vscode-button-hoverBackground);
-		}
-		.btn-secondary {
-			background-color: var(--vscode-button-secondaryBackground);
-			color: var(--vscode-button-secondaryForeground);
-		}
-		.btn-secondary:hover {
-			background-color: var(--vscode-button-secondaryHoverBackground);
-		}
 	</style>
 </head>
 <body>
 	<div class="password-display">
-		<span class="password-text" id="passwordDisplay">${this.escapeHtml(initialPassword)}</span>
+		<span class="password-text" id="passwordDisplay">${escapeHtml(initialPassword)}</span>
 		<div class="icon-buttons">
 			<button class="icon-btn" id="regenerateBtn" title="Regenerate">
 				${Icons.rotateCcwKey}
@@ -226,6 +199,10 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 			<button class="icon-btn" id="copyBtn" title="Copy to clipboard">
 				${Icons.clipboardCopy}
 				<span class="icon-btn-text">Copy</span>
+			</button>
+			<button class="icon-btn" id="insertBtn" title="Insert to document">
+				${Icons.insertIntoDocument}
+				<span class="icon-btn-text">Insert</span>
 			</button>
 		</div>
 	</div>
@@ -273,10 +250,6 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 			<input type="checkbox" id="avoidAmbiguous">
 			<span>Avoid ambiguous chars</span>
 		</label>
-	</div>
-
-	<div class="action-buttons">
-		<button class="btn btn-primary" id="insertBtn">Insert to Document</button>
 	</div>
 
 	<script>
@@ -353,15 +326,4 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 </html>`;
 	}
 
-	/**
-	 * Escape HTML special characters to prevent XSS
-	 */
-	private escapeHtml(text: string): string {
-		return text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#039;');
-	}
 }

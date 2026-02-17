@@ -1,6 +1,30 @@
 import * as vscode from 'vscode';
 
 /**
+ * Escape HTML special characters to prevent XSS in webview content.
+ */
+export function escapeHtml(unsafe: string): string {
+	return unsafe
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#039;');
+}
+
+/**
+ * Get the relative file path from a URI, relative to the workspace root.
+ * Returns null if no workspace folder is open.
+ */
+export function getRelativePath(uri: vscode.Uri): string | null {
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (!workspaceFolders || workspaceFolders.length === 0) {
+		return null;
+	}
+	return vscode.workspace.asRelativePath(uri, false);
+}
+
+/**
  * Insert text at cursor positions in the active editor.
  * Supports multiple cursors - each cursor gets a unique generated value.
  * If a selection spans multiple lines, replaces with one value per line.

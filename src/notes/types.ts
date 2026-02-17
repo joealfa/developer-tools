@@ -199,19 +199,18 @@ export const STORAGE_FILES = {
 
 /**
  * Category display configuration
- * Note: 'icon' is used in dropdowns (text only), 'svgIcon' key maps to Icons object for badges
  */
-export const CATEGORY_CONFIG: Record<NoteCategory, { label: string; icon: string; color: string; svgIconKey: string }> = {
-    note: { label: 'Note', icon: '📄', color: '#3794ff', svgIconKey: 'notepadText' },
-    todo: { label: 'TODO', icon: '☑', color: '#f9a825', svgIconKey: 'listTodo' },
-    fixme: { label: 'FIXME', icon: '⚑', color: '#f44336', svgIconKey: 'locateFixed' },
-    question: { label: 'Question', icon: '?', color: '#9c27b0', svgIconKey: 'fileQuestion' },
+export const CATEGORY_CONFIG: Record<NoteCategory, { label: string; color: string; svgIconKey: string }> = {
+    note: { label: 'Note', color: '#3794ff', svgIconKey: 'notepadText' },
+    todo: { label: 'ToDo', color: '#f9a825', svgIconKey: 'listTodo' },
+    fixme: { label: 'FixMe', color: '#f44336', svgIconKey: 'locateFixed' },
+    question: { label: 'Question', color: '#9c27b0', svgIconKey: 'fileQuestion' },
 } as const;
 
 /**
  * Status display configuration
  */
-export const STATUS_CONFIG: Record<NoteStatus, { label: string; icon: string; color: string }> = {
-    active: { label: 'Active', icon: '✓', color: '#4caf50' },
-    orphaned: { label: 'Orphaned', icon: '⚠️', color: '#ff9800' },
+export const STATUS_CONFIG: Record<NoteStatus, { label: string; color: string; svgIconKey: string }> = {
+    active: { label: 'Active', color: '#4caf50', svgIconKey: 'badgeCheck' },
+    orphaned: { label: 'Orphaned', color: '#ff9800', svgIconKey: 'badgeAlert' },
 } as const;

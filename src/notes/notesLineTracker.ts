@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import { NotesService } from './notesService';
+import { getRelativePath } from '../utils';
 
 /**
  * Tracks document changes and updates note line numbers accordingly
@@ -37,7 +38,7 @@ export class NotesLineTracker implements vscode.Disposable {
         }
 
         // Get relative file path
-        const filePath = this.getRelativePath(document.uri);
+        const filePath = getRelativePath(document.uri);
         if (!filePath) {
             return;
         }
@@ -301,18 +302,6 @@ export class NotesLineTracker implements vscode.Disposable {
      */
     private hashContent(content: string): string {
         return crypto.createHash('md5').update(content).digest('hex');
-    }
-
-    /**
-     * Get relative file path from URI
-     */
-    private getRelativePath(uri: vscode.Uri): string | null {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return null;
-        }
-
-        return vscode.workspace.asRelativePath(uri, false);
     }
 
     /**

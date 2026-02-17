@@ -4,6 +4,21 @@ All notable changes to the "developer-tools" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.3] - 2026-02-17
+
+### Changed
+- **SVG Icons in Dropdowns** - Replaced emoji icons with Lucide SVG icons in Notes category and status filter dropdowns
+- **SVG Gutter Icons** - Gutter decorations now use Lucide SVG icons instead of colored circles
+- **Category Labels** - Updated category display names: TODO → ToDo, FIXME → FixMe
+
+### Removed
+- **Legacy Notes Panel** - Removed the unused `NotesPanel` webview (~900 lines), fully replaced by Note Editor + Notes Table since v1.0.1
+
+### Fixed
+- **Code Cleanup** - Deduplicated `escapeHtml()` and `getRelativePath()` utilities across webview providers and notes trackers
+- **Unused Code** - Removed unused `clearDecorations()` method and unused command handler parameters
+- **Category Label in Delete** - Delete note quick pick now shows proper category labels instead of uppercase keys
+
 ## [1.0.2] - 2026-01-28
 
 ### Added

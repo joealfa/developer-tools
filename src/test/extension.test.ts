@@ -364,16 +364,25 @@ suite('Notes Types Tests', () => {
 
 	test('CATEGORY_CONFIG entries have required properties', () => {
 		for (const [key, config] of Object.entries(CATEGORY_CONFIG)) {
-			const cfg = config as { label: string; icon: string; color: string };
+			const cfg = config as { label: string; color: string; svgIconKey: string };
 			assert.ok(cfg.label, `${key} category should have label`);
-			assert.ok(cfg.icon, `${key} category should have icon`);
 			assert.ok(cfg.color, `${key} category should have color`);
+			assert.ok(cfg.svgIconKey, `${key} category should have svgIconKey`);
 		}
 	});
 
 	test('STATUS_CONFIG has all required statuses', () => {
 		assert.ok(STATUS_CONFIG.active, 'Should have active status');
 		assert.ok(STATUS_CONFIG.orphaned, 'Should have orphaned status');
+	});
+
+	test('STATUS_CONFIG entries have required properties', () => {
+		for (const [key, config] of Object.entries(STATUS_CONFIG)) {
+			const cfg = config as { label: string; color: string; svgIconKey: string };
+			assert.ok(cfg.label, `${key} status should have label`);
+			assert.ok(cfg.color, `${key} status should have color`);
+			assert.ok(cfg.svgIconKey, `${key} status should have svgIconKey`);
+		}
 	});
 
 	test('STORAGE_LIMITS has correct values', () => {

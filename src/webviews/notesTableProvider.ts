@@ -13,6 +13,7 @@ import {
     CATEGORY_CONFIG,
     STATUS_CONFIG,
 } from '../notes';
+import { escapeHtml } from '../utils';
 import { Icons } from './icons';
 import type { NoteEditorProvider } from './noteEditorProvider';
 
@@ -342,19 +343,34 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         const filteredCount = notes.length;
         const storageStats = this.notesService.getStorageStats();
 
-        const categoryOptions = [
-            '<option value="all">All Categories</option>',
+        // Category filter custom dropdown items
+        const categoryFilterItems = [
+            `<div class="custom-dropdown-item ${this.categoryFilter === 'all' ? 'selected' : ''}" data-value="all"><span>All Categories</span></div>`,
             ...Object.entries(CATEGORY_CONFIG).map(
-                ([key, config]) => `<option value="${key}" ${this.categoryFilter === key ? 'selected' : ''}>${config.icon} ${config.label}</option>`
+                ([key, config]) => `<div class="custom-dropdown-item ${this.categoryFilter === key ? 'selected' : ''}" data-value="${key}">${this.getCategoryIconDropdown(key as NoteCategory)}<span>${config.label}</span></div>`
             ),
         ].join('');
 
-        const statusOptions = [
-            '<option value="all">All Status</option>',
+        const categoryFilterTrigger = this.categoryFilter === 'all'
+            ? `<span>All Categories</span>`
+            : `${this.getCategoryIconDropdown(this.categoryFilter as NoteCategory)}<span>${CATEGORY_CONFIG[this.categoryFilter as NoteCategory].label}</span>`;
+
+        // Bulk change category dropdown items
+        const changeCategoryItems = Object.entries(CATEGORY_CONFIG)
+            .map(([key, config]) => `<div class="custom-dropdown-item" data-value="${key}">${this.getCategoryIconDropdown(key as NoteCategory)}<span>${config.label}</span></div>`)
+            .join('');
+
+        // Status filter custom dropdown items
+        const statusFilterItems = [
+            `<div class="custom-dropdown-item ${this.statusFilter === 'all' ? 'selected' : ''}" data-value="all"><span>All Status</span></div>`,
             ...Object.entries(STATUS_CONFIG).map(
-                ([key, config]) => `<option value="${key}" ${this.statusFilter === key ? 'selected' : ''}>${config.icon} ${config.label}</option>`
+                ([key, config]) => `<div class="custom-dropdown-item ${this.statusFilter === key ? 'selected' : ''}" data-value="${key}">${this.getStatusIconDropdown(key as NoteStatus)}<span>${config.label}</span></div>`
             ),
         ].join('');
+
+        const statusFilterTrigger = this.statusFilter === 'all'
+            ? `<span>All Status</span>`
+            : `${this.getStatusIconDropdown(this.statusFilter as NoteStatus)}<span>${STATUS_CONFIG[this.statusFilter as NoteStatus].label}</span>`;
 
         const groupByOptions = [
             { value: 'file', label: 'File' },
@@ -362,10 +378,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             { value: 'status', label: 'Status' },
             { value: 'none', label: 'None' },
         ].map(opt => `<option value="${opt.value}" ${this.groupBy === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('');
-
-        const changeCategoryOptions = Object.entries(CATEGORY_CONFIG)
-            .map(([key, config]) => `<option value="${key}">${config.icon} ${config.label}</option>`)
-            .join('');
 
         const tableHtml = this.generateTableHtml(groupedNotes);
 
@@ -543,6 +555,12 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         .category-question { background-color: #9c27b033; color: #9c27b0; }
         .status-icon {
             font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .status-icon svg {
+            width: 12px;
+            height: 12px;
         }
         .status-orphaned {
             color: var(--vscode-inputValidation-warningForeground);
@@ -593,17 +611,93 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             width: 32px;
             height: 32px;
         }
+        /* Custom dropdown styles */
+        .custom-dropdown {
+            position: relative;
+        }
+        .custom-dropdown-trigger {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            color: var(--vscode-dropdown-foreground);
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .custom-dropdown-trigger:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        .custom-dropdown-trigger svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+        .custom-dropdown-trigger .arrow {
+            margin-left: 4px;
+            font-size: 8px;
+        }
+        .custom-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 100%;
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 4px;
+            margin-top: 2px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        .custom-dropdown.open .custom-dropdown-menu {
+            display: block;
+        }
+        .custom-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .custom-dropdown-item:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        .custom-dropdown-item.selected {
+            background-color: var(--vscode-list-activeSelectionBackground);
+            color: var(--vscode-list-activeSelectionForeground);
+        }
+        .custom-dropdown-item svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
     <div class="toolbar">
-        <input type="text" class="search-box" id="searchBox" placeholder="Search notes..." value="${this.escapeHtml(this.searchText)}">
-        <select class="filter-select" id="categoryFilter">
-            ${categoryOptions}
-        </select>
-        <select class="filter-select" id="statusFilter">
-            ${statusOptions}
-        </select>
+        <input type="text" class="search-box" id="searchBox" placeholder="Search notes..." value="${escapeHtml(this.searchText)}">
+        <div class="custom-dropdown" id="categoryFilterDropdown">
+            <div class="custom-dropdown-trigger" onclick="toggleDropdown('categoryFilterDropdown')">
+                ${categoryFilterTrigger}<span class="arrow">▼</span>
+            </div>
+            <div class="custom-dropdown-menu">
+                ${categoryFilterItems}
+            </div>
+        </div>
+        <div class="custom-dropdown" id="statusFilterDropdown">
+            <div class="custom-dropdown-trigger" onclick="toggleDropdown('statusFilterDropdown')">
+                ${statusFilterTrigger}<span class="arrow">▼</span>
+            </div>
+            <div class="custom-dropdown-menu">
+                ${statusFilterItems}
+            </div>
+        </div>
         <select class="filter-select" id="groupBy">
             ${groupByOptions}
         </select>
@@ -622,10 +716,14 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 
     <div class="bulk-actions ${this.selectedNotes.size === 0 ? 'hidden' : ''}" id="bulkActions">
         <span id="selectedCount">${this.selectedNotes.size} selected</span>
-        <select class="filter-select" id="bulkCategory">
-            <option value="">Change Category...</option>
-            ${changeCategoryOptions}
-        </select>
+        <div class="custom-dropdown" id="bulkCategoryDropdown">
+            <div class="custom-dropdown-trigger" onclick="toggleDropdown('bulkCategoryDropdown')">
+                <span>Change Category...</span><span class="arrow">▼</span>
+            </div>
+            <div class="custom-dropdown-menu">
+                ${changeCategoryItems}
+            </div>
+        </div>
         <button class="btn btn-danger" onclick="deleteSelected()">Delete Selected</button>
     </div>
 
@@ -651,25 +749,64 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             }, 300);
         });
 
-        // Filters
-        document.getElementById('categoryFilter').addEventListener('change', (e) => {
-            vscode.postMessage({ command: 'filterCategory', category: e.target.value });
+        // Custom dropdown toggle
+        function toggleDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const isOpen = dropdown.classList.contains('open');
+            document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
+            if (!isOpen) {
+                dropdown.classList.add('open');
+            }
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.custom-dropdown')) {
+                document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
+            }
         });
 
-        document.getElementById('statusFilter').addEventListener('change', (e) => {
-            vscode.postMessage({ command: 'filterStatus', status: e.target.value });
+        // Category filter dropdown items
+        document.querySelectorAll('#categoryFilterDropdown .custom-dropdown-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const value = this.dataset.value;
+                const trigger = document.querySelector('#categoryFilterDropdown .custom-dropdown-trigger');
+                const svgHtml = this.querySelector('svg') ? this.querySelector('svg').outerHTML : '';
+                const label = this.querySelector('span').textContent;
+                trigger.innerHTML = (svgHtml ? svgHtml : '') + '<span>' + label + '</span><span class="arrow">▼</span>';
+                document.querySelectorAll('#categoryFilterDropdown .custom-dropdown-item').forEach(i => i.classList.remove('selected'));
+                this.classList.add('selected');
+                document.getElementById('categoryFilterDropdown').classList.remove('open');
+                vscode.postMessage({ command: 'filterCategory', category: value });
+            });
+        });
+
+        // Bulk category change dropdown items
+        document.querySelectorAll('#bulkCategoryDropdown .custom-dropdown-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const value = this.dataset.value;
+                document.getElementById('bulkCategoryDropdown').classList.remove('open');
+                vscode.postMessage({ command: 'changeCategorySelected', category: value });
+            });
+        });
+
+        // Status filter dropdown items
+        document.querySelectorAll('#statusFilterDropdown .custom-dropdown-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const value = this.dataset.value;
+                const trigger = document.querySelector('#statusFilterDropdown .custom-dropdown-trigger');
+                const svgHtml = this.querySelector('svg') ? this.querySelector('svg').outerHTML : '';
+                const label = this.querySelector('span').textContent;
+                trigger.innerHTML = (svgHtml ? svgHtml : '') + '<span>' + label + '</span><span class="arrow">▼</span>';
+                document.querySelectorAll('#statusFilterDropdown .custom-dropdown-item').forEach(i => i.classList.remove('selected'));
+                this.classList.add('selected');
+                document.getElementById('statusFilterDropdown').classList.remove('open');
+                vscode.postMessage({ command: 'filterStatus', status: value });
+            });
         });
 
         document.getElementById('groupBy').addEventListener('change', (e) => {
             vscode.postMessage({ command: 'groupBy', groupBy: e.target.value });
-        });
-
-        // Bulk category change
-        document.getElementById('bulkCategory').addEventListener('change', (e) => {
-            if (e.target.value) {
-                vscode.postMessage({ command: 'changeCategorySelected', category: e.target.value });
-                e.target.value = '';
-            }
         });
 
         // Navigation (single click - navigate to line only)
@@ -750,7 +887,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 rows.push(`
                 <div class="group-header">
                     <span class="group-toggle" onclick="toggleGroup('${groupId}')" id="toggle-${groupId}">▼</span>
-                    ${this.escapeHtml(groupName)} (${notes.length})
+                    ${escapeHtml(groupName)} (${notes.length})
                 </div>
                 `);
             }
@@ -770,7 +907,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                     </div>
                     <div class="note-status-col">
                         <span class="status-icon ${isOrphaned ? 'status-orphaned' : ''}" title="${isOrphaned ? 'Orphaned' : 'Active'}">
-                            ${isOrphaned ? '⚠️' : '✓'}
+                            ${this.getStatusIcon(note.status)}
                         </span>
                     </div>
                     <div class="note-content-col">
@@ -778,8 +915,8 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                             <span class="category-badge category-${note.category}">
                                 ${this.getCategoryIcon(note.category)} ${categoryConfig.label}
                             </span>
-                            <span class="note-file" title="${this.escapeHtml(note.filePath)}">
-                                ${this.escapeHtml(note.filePath)}
+                            <span class="note-file" title="${escapeHtml(note.filePath)}">
+                                ${escapeHtml(note.filePath)}
                             </span>
                         </div>
                         <div class="note-second-row">
@@ -801,6 +938,44 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Get SVG icon for a status (14px for dropdowns)
+     */
+    private getStatusIconDropdown(status: NoteStatus): string {
+        const iconMap: Record<string, string> = {
+            active: Icons.badgeCheck,
+            orphaned: Icons.badgeAlert,
+        };
+        const icon = iconMap[status] || Icons.badgeCheck;
+        return icon.replace('width="24"', 'width="14"').replace('height="24"', 'height="14"');
+    }
+
+    /**
+     * Get SVG icon for a status (12px for table rows)
+     */
+    private getStatusIcon(status: NoteStatus): string {
+        const iconMap: Record<string, string> = {
+            active: Icons.badgeCheck,
+            orphaned: Icons.badgeAlert,
+        };
+        const icon = iconMap[status] || Icons.badgeCheck;
+        return icon.replace('width="24"', 'width="12"').replace('height="24"', 'height="12"');
+    }
+
+    /**
+     * Get SVG icon for a category (14px for dropdowns)
+     */
+    private getCategoryIconDropdown(category: NoteCategory): string {
+        const iconMap: Record<string, string> = {
+            note: Icons.notepadText,
+            todo: Icons.listTodo,
+            fixme: Icons.locateFixed,
+            question: Icons.fileQuestion,
+        };
+        const icon = iconMap[category] || Icons.notepadText;
+        return icon.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"');
+    }
+
+    /**
      * Get SVG icon for a category
      */
     private getCategoryIcon(category: NoteCategory): string {
@@ -812,18 +987,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         };
         const icon = iconMap[category] || Icons.notepadText;
         return icon.replace('width="18"', 'width="11"').replace('height="18"', 'height="11"');
-    }
-
-    /**
-     * Escape HTML special characters
-     */
-    private escapeHtml(text: string): string {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
     }
 
     /**

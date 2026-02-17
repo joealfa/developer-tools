@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { generateUuid, generateGuid, generateUuidCompact, generateGuidCompact } from '../generators';
 import { insertTextAtCursor } from '../utils';
-import { 
-	NotesService, 
-	NotesExportService 
+import {
+	NotesService,
+	NotesExportService,
+	CATEGORY_CONFIG,
 } from '../notes';
 import { ExtensionState } from '../extensionState';
 
@@ -97,7 +98,7 @@ const commands: CommandDefinition[] = [
 	},
 	{
 		id: 'developer-tools.deleteNote',
-		handler: async (context) => {
+		handler: async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor || editor.document.uri.scheme !== 'file') {
 				vscode.window.showErrorMessage('Please open a file to delete notes.');
@@ -128,7 +129,7 @@ const commands: CommandDefinition[] = [
 				// Multiple notes - let user choose
 				const items = notes.map(note => ({
 					label: note.text.substring(0, 50) + (note.text.length > 50 ? '...' : ''),
-					description: note.category.toUpperCase(),
+					description: CATEGORY_CONFIG[note.category].label,
 					id: note.id,
 				}));
 
@@ -153,7 +154,7 @@ const commands: CommandDefinition[] = [
 	},
 	{
 		id: 'developer-tools.exportNotes',
-		handler: async (context) => {
+		handler: async () => {
 			const notesService = NotesService.getInstance();
 			const exportService = new NotesExportService(notesService);
 			await exportService.exportNotes();
@@ -162,7 +163,7 @@ const commands: CommandDefinition[] = [
 	},
 	{
 		id: 'developer-tools.importNotes',
-		handler: async (context) => {
+		handler: async () => {
 			const notesService = NotesService.getInstance();
 			const exportService = new NotesExportService(notesService);
 			await exportService.importNotes();
@@ -171,7 +172,7 @@ const commands: CommandDefinition[] = [
 	},
 	{
 		id: 'developer-tools.manageNotesStorage',
-		handler: async (context) => {
+		handler: async () => {
 			const notesService = NotesService.getInstance();
 			const stats = notesService.getStorageStats();
 			const storageType = notesService.getStorageType();

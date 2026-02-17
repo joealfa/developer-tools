@@ -6,10 +6,10 @@
   "repository": {
     "url": "https://github.com/joealfa/developer-tools"
   },
-  "icon": "images/icon.jpg",
-  "version": "1.0.2",
+  "icon": "images/icon.png",
+  "version": "1.0.3",
   "engines": {
-    "vscode": "^1.106.1"
+    "vscode": "^1.109.0"
   },
   "categories": [
     "Other"
@@ -206,11 +206,14 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
+  "overrides": {
+    "diff": "^8.0.3"
+  },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.106.1",
-    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.27.0",

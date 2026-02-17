@@ -9,7 +9,7 @@ import {
 	NotesWorkspaceTracker,
 	NotesExportService,
 } from './notes';
-import { NotesPanel, NotesTableProvider, PasswordGeneratorProvider, NoteEditorProvider } from './webviews';
+import { NotesTableProvider, PasswordGeneratorProvider, NoteEditorProvider } from './webviews';
 import { ExtensionState } from './extensionState';
 
 /**
@@ -33,9 +33,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Initialize Notes Decorations
 	const decorations = new NotesDecorations(notesService, context);
 
-	// Initialize Notes Panel
-	const notesPanel = NotesPanel.getInstance(context, notesService);
-
 	// Initialize Note Editor Provider for secondary sidebar
 	const noteEditorProvider = new NoteEditorProvider(context, notesService);
 	context.subscriptions.push(
@@ -45,10 +42,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		)
 	);
 
-	// Wire up cursor tracker with panel for focus management
-	notesPanel.setCursorTracker(cursorTracker);
-
-	// Set up cursor tracker to show/hide notes panel
+	// Set up cursor tracker to show/hide note editor
 	cursorTracker.setVisibilityCallback(async (show, filePath, lineNumber) => {
 		if (show && filePath !== null && lineNumber !== null) {
 			// Show in secondary sidebar instead of panel (will auto-close if no notes)
@@ -120,7 +114,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		workspaceTracker,
 		exportService,
 		decorations,
-		notesPanel,
 		notesTableProvider,
 		notesService
 	);

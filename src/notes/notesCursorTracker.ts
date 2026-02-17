@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotesService } from './notesService';
+import { getRelativePath } from '../utils';
 
 /**
  * Callback type for panel visibility changes
@@ -146,7 +147,7 @@ export class NotesCursorTracker implements vscode.Disposable {
      * Check if current line has notes and update visibility
      */
     private checkLineForNotes(uri: vscode.Uri, lineNumber: number): void {
-        const filePath = this.getRelativePath(uri);
+        const filePath = getRelativePath(uri);
         if (!filePath) {
             this.updateVisibility(false, null, null);
             return;
@@ -215,7 +216,7 @@ export class NotesCursorTracker implements vscode.Disposable {
             return;
         }
 
-        const filePath = this.getRelativePath(editor.document.uri);
+        const filePath = getRelativePath(editor.document.uri);
         const lineNumber = editor.selection.active.line;
 
         if (filePath !== null) {
@@ -238,18 +239,6 @@ export class NotesCursorTracker implements vscode.Disposable {
         if (this.visibilityCallback) {
             this.visibilityCallback(false, null, null);
         }
-    }
-
-    /**
-     * Get relative file path from URI
-     */
-    private getRelativePath(uri: vscode.Uri): string | null {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return null;
-        }
-
-        return vscode.workspace.asRelativePath(uri, false);
     }
 
     /**

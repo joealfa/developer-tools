@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotesService } from './notesService';
+import { getRelativePath } from '../utils';
 
 /**
  * Tracks file system changes and updates notes accordingly
@@ -37,8 +38,8 @@ export class NotesFileTracker implements vscode.Disposable {
         const pathUpdates: Array<{ oldPath: string; newPath: string }> = [];
 
         for (const { oldUri, newUri } of event.files) {
-            const oldPath = this.getRelativePath(oldUri);
-            const newPath = this.getRelativePath(newUri);
+            const oldPath = getRelativePath(oldUri);
+            const newPath = getRelativePath(newUri);
 
             if (!oldPath || !newPath) {
                 continue;
@@ -78,7 +79,7 @@ export class NotesFileTracker implements vscode.Disposable {
         const pathsToDelete: string[] = [];
 
         for (const uri of event.files) {
-            const filePath = this.getRelativePath(uri);
+            const filePath = getRelativePath(uri);
             if (!filePath) {
                 continue;
             }
@@ -117,24 +118,6 @@ export class NotesFileTracker implements vscode.Disposable {
         } catch {
             return false;
         }
-    }
-
-    /**
-     * Get relative file path from URI
-     */
-    private getRelativePath(uri: vscode.Uri): string | null {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return null;
-        }
-
-        // Get the workspace folder for this file
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
-        if (!workspaceFolder) {
-            return null;
-        }
-
-        return vscode.workspace.asRelativePath(uri, false);
     }
 
     /**

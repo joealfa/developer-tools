@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotesService, Note, NoteCategory, CATEGORY_CONFIG } from '../notes';
+import { escapeHtml } from '../utils';
 import { Icons } from './icons';
 
 /**
@@ -297,7 +298,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
                         ${Icons.trash2}
                     </button>
                 </div>
-                <textarea class="note-text" id="note-${note.id}" onchange="updateNote('${note.id}')">${this.escapeHtml(note.text)}</textarea>
+                <textarea class="note-text" id="note-${note.id}" onchange="updateNote('${note.id}')">${escapeHtml(note.text)}</textarea>
                 <div class="note-footer">
                     <span class="note-date">${createdDate}</span>
                     <select class="category-select" onchange="updateNoteCategory('${note.id}', this.value)">
@@ -451,7 +452,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
     <div class="location-info">
-        <div class="location-file">${this.escapeHtml(this.currentFilePath)}</div>
+        <div class="location-file">${escapeHtml(this.currentFilePath)}</div>
         <div>Line ${this.currentLineNumber + 1}</div>
     </div>
 
@@ -570,18 +571,6 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
         };
         const icon = iconMap[category] || Icons.notepadText;
         return icon.replace('width="18"', 'width="11"').replace('height="18"', 'height="11"');
-    }
-
-    /**
-     * Escape HTML special characters
-     */
-    private escapeHtml(unsafe: string): string {
-        return unsafe
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
     }
 
     /**

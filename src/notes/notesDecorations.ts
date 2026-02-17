@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import { NotesService } from './notesService';
 import { NoteCategory, NoteStatus, CATEGORY_CONFIG, STATUS_CONFIG } from './types';
+import { getRelativePath } from '../utils';
+import { Icons } from '../webviews/icons';
 
 /**
  * Manages gutter decorations for notes
@@ -32,11 +34,22 @@ export class NotesDecorations implements vscode.Disposable {
     /**
      * Create decoration types for each category and status
      */
-    private createDecorationTypes(context: vscode.ExtensionContext): void {
+    private createDecorationTypes(_context: vscode.ExtensionContext): void {
+        // Map svgIconKey to Icons entries
+        const iconKeyMap: Record<string, string> = {
+            notepadText: Icons.notepadText,
+            listTodo: Icons.listTodo,
+            locateFixed: Icons.locateFixed,
+            fileQuestion: Icons.fileQuestion,
+            badgeCheck: Icons.badgeCheck,
+            badgeAlert: Icons.badgeAlert,
+        };
+
         // Create decorations for each category
         for (const [category, config] of Object.entries(CATEGORY_CONFIG)) {
+            const svgSource = iconKeyMap[config.svgIconKey] || Icons.notepadText;
             const decorationType = vscode.window.createTextEditorDecorationType({
-                gutterIconPath: this.createSvgUri(context, config.color, config.icon),
+                gutterIconPath: this.createSvgUri(svgSource, config.color),
                 gutterIconSize: 'contain',
                 overviewRulerColor: config.color,
                 overviewRulerLane: vscode.OverviewRulerLane.Right,
@@ -45,10 +58,12 @@ export class NotesDecorations implements vscode.Disposable {
         }
 
         // Create decoration for orphaned notes (warning style)
+        const orphanedConfig = STATUS_CONFIG.orphaned;
+        const orphanedSvg = iconKeyMap[orphanedConfig.svgIconKey] || Icons.badgeAlert;
         const orphanedDecoration = vscode.window.createTextEditorDecorationType({
-            gutterIconPath: this.createSvgUri(context, STATUS_CONFIG.orphaned.color, '⚠'),
+            gutterIconPath: this.createSvgUri(orphanedSvg, orphanedConfig.color),
             gutterIconSize: 'contain',
-            overviewRulerColor: STATUS_CONFIG.orphaned.color,
+            overviewRulerColor: orphanedConfig.color,
             overviewRulerLane: vscode.OverviewRulerLane.Right,
             backgroundColor: new vscode.ThemeColor('editorWarning.background'),
             isWholeLine: true,
@@ -57,16 +72,16 @@ export class NotesDecorations implements vscode.Disposable {
     }
 
     /**
-     * Create an SVG data URI for gutter icon
+     * Create an SVG data URI for gutter icon by colorizing a Lucide SVG
      */
-    private createSvgUri(context: vscode.ExtensionContext, color: string, icon: string): vscode.Uri {
-        // Create a simple colored circle SVG
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
-            <circle cx="8" cy="8" r="6" fill="${color}" opacity="0.8"/>
-            <circle cx="8" cy="8" r="4" fill="${color}"/>
-        </svg>`;
-        
-        const encodedSvg = encodeURIComponent(svg);
+    private createSvgUri(svgSource: string, color: string): vscode.Uri {
+        // Replace stroke="currentColor" with the actual color
+        const colorized = svgSource
+            .replace(/stroke="currentColor"/g, `stroke="${color}"`)
+            .replace(/width="\d+"/, 'width="16"')
+            .replace(/height="\d+"/, 'height="16"');
+
+        const encodedSvg = encodeURIComponent(colorized);
         return vscode.Uri.parse(`data:image/svg+xml,${encodedSvg}`);
     }
 
@@ -119,7 +134,7 @@ export class NotesDecorations implements vscode.Disposable {
             return;
         }
 
-        const filePath = this.getRelativePath(editor.document.uri);
+        const filePath = getRelativePath(editor.document.uri);
         if (!filePath) {
             return;
         }
@@ -195,28 +210,6 @@ export class NotesDecorations implements vscode.Disposable {
 
         // Track decorated editor
         this.decoratedEditors.add(editor.document.uri.toString());
-    }
-
-    /**
-     * Clear decorations from an editor
-     */
-    clearDecorations(editor: vscode.TextEditor): void {
-        for (const decorationType of this.decorationTypes.values()) {
-            editor.setDecorations(decorationType, []);
-        }
-        this.decoratedEditors.delete(editor.document.uri.toString());
-    }
-
-    /**
-     * Get relative file path from URI
-     */
-    private getRelativePath(uri: vscode.Uri): string | null {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return null;
-        }
-
-        return vscode.workspace.asRelativePath(uri, false);
     }
 
     /**

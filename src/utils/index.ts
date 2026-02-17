@@ -1,1 +1,1 @@
-export { insertTextAtCursor, insertTextIntoEditor } from './editor';
+export { insertTextAtCursor, insertTextIntoEditor, escapeHtml, getRelativePath } from './editor';
