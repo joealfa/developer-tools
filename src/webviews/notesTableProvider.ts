@@ -759,11 +759,16 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             }
         }
 
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(e) {
+        // Close dropdowns when clicking outside (use mousedown to fire before native controls capture the event)
+        document.addEventListener('mousedown', function(e) {
             if (!e.target.closest('.custom-dropdown')) {
                 document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
             }
+        });
+
+        // Close dropdowns when webview loses focus (e.g. clicking in the editor)
+        window.addEventListener('blur', function() {
+            document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
         });
 
         // Category filter dropdown items
