@@ -49,39 +49,32 @@ export class NotesDecorations implements vscode.Disposable {
         for (const [category, config] of Object.entries(CATEGORY_CONFIG)) {
             const svgSource = iconKeyMap[config.svgIconKey] || Icons.notepadText;
             const decorationType = vscode.window.createTextEditorDecorationType({
-                gutterIconPath: this.createSvgUri(svgSource, config.color),
-                gutterIconSize: 'contain',
-                overviewRulerColor: config.color,
-                overviewRulerLane: vscode.OverviewRulerLane.Right,
+                dark: { gutterIconPath: this.createSvgUri(svgSource, '#C5C5C5'), gutterIconSize: '65%' },
+                light: { gutterIconPath: this.createSvgUri(svgSource, '#777777'), gutterIconSize: '65%' },
             });
             this.decorationTypes.set(`category-${category}`, decorationType);
         }
 
-        // Create decoration for orphaned notes (warning style)
+        // Create decoration for orphaned notes
         const orphanedConfig = STATUS_CONFIG.orphaned;
         const orphanedSvg = iconKeyMap[orphanedConfig.svgIconKey] || Icons.badgeAlert;
         const orphanedDecoration = vscode.window.createTextEditorDecorationType({
-            gutterIconPath: this.createSvgUri(orphanedSvg, orphanedConfig.color),
-            gutterIconSize: 'contain',
-            overviewRulerColor: orphanedConfig.color,
-            overviewRulerLane: vscode.OverviewRulerLane.Right,
-            backgroundColor: new vscode.ThemeColor('editorWarning.background'),
-            isWholeLine: true,
+            dark: { gutterIconPath: this.createSvgUri(orphanedSvg, '#C5C5C5'), gutterIconSize: '65%' },
+            light: { gutterIconPath: this.createSvgUri(orphanedSvg, '#777777'), gutterIconSize: '65%' },
         });
         this.decorationTypes.set('status-orphaned', orphanedDecoration);
     }
 
     /**
-     * Create an SVG data URI for gutter icon by colorizing a Lucide SVG
+     * Create a colored SVG data URI for a gutter icon
      */
     private createSvgUri(svgSource: string, color: string): vscode.Uri {
-        // Replace stroke="currentColor" with the actual color
-        const colorized = svgSource
+        const colored = svgSource
             .replace(/stroke="currentColor"/g, `stroke="${color}"`)
             .replace(/width="\d+"/, 'width="16"')
             .replace(/height="\d+"/, 'height="16"');
 
-        const encodedSvg = encodeURIComponent(colorized);
+        const encodedSvg = encodeURIComponent(colored);
         return vscode.Uri.parse(`data:image/svg+xml,${encodedSvg}`);
     }
 

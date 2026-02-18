@@ -154,7 +154,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 }
                 break;
 
-            case 'selectAll':
+            case 'selectAll': {
                 const notes = this.getFilteredNotes();
                 if (message.selected) {
                     notes.forEach(n => this.selectedNotes.add(n.id));
@@ -163,6 +163,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 }
                 this.refresh();
                 break;
+            }
 
             case 'deleteSelected':
                 await this.deleteSelectedNotes();
@@ -341,8 +342,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         const groupedNotes = this.groupNotes(notes);
         const totalCount = this.notesService.count;
         const filteredCount = notes.length;
-        const storageStats = this.notesService.getStorageStats();
-
         // Category filter custom dropdown items
         const categoryFilterItems = [
             `<div class="custom-dropdown-item ${this.categoryFilter === 'all' ? 'selected' : ''}" data-value="all"><span>All Categories</span></div>`,
@@ -549,10 +548,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             width: 11px;
             height: 11px;
         }
-        .category-note { background-color: #3794ff33; color: #3794ff; }
-        .category-todo { background-color: #f9a82533; color: #f9a825; }
-        .category-fixme { background-color: #f4433633; color: #f44336; }
-        .category-question { background-color: #9c27b033; color: #9c27b0; }
         .status-icon {
             font-size: 12px;
             display: inline-flex;
@@ -561,9 +556,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         .status-icon svg {
             width: 12px;
             height: 12px;
-        }
-        .status-orphaned {
-            color: var(--vscode-inputValidation-warningForeground);
         }
         .note-file {
             overflow: hidden;
@@ -575,6 +567,14 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
         }
         .note-date {
             flex-shrink: 0;
+        }
+        .note-preview-row {
+            font-size: 11px;
+            color: var(--vscode-foreground);
+            opacity: 0.75;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .action-btn {
             background: transparent;
@@ -706,11 +706,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     <div class="stats">
         <span>Showing ${filteredCount} of ${totalCount} notes</span>
         <span class="storage-indicator">
-            Storage: ${Math.round(storageStats.percentage)}%
-            <div class="storage-bar">
-                <div class="storage-fill ${storageStats.percentage >= 95 ? 'critical' : storageStats.percentage >= 80 ? 'warning' : ''}" 
-                     style="width: ${Math.min(storageStats.percentage, 100)}%"></div>
-            </div>
+            .vscode/notes/
         </span>
     </div>
 
@@ -929,6 +925,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                             <span>•</span>
                             <span class="note-date">${createdDate}</span>
                         </div>
+                        <div class="note-preview-row" title="${escapeHtml(note.text)}">${escapeHtml(note.text.length > 90 ? note.text.substring(0, 90) + '\u2026' : note.text)}</div>
                     </div>
                     <div class="note-actions-col">
                         <button class="action-btn danger" onclick="deleteNote('${note.id}', event)" title="Delete">${Icons.trash2.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"')}</button>

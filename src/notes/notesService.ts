@@ -7,15 +7,10 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import {
     Note,
-    NoteCategory,
-    NoteStatus,
     CreateNoteOptions,
     UpdateNoteOptions,
     NotesFilter,
     NotesChangeEvent,
-    StorageWarningEvent,
-    StorageStats,
-    StorageType,
 } from './types';
 import { NotesRepository } from './notesRepository';
 
@@ -30,12 +25,9 @@ export class NotesService implements vscode.Disposable {
 
     // Event emitters
     private readonly _onDidChangeNotes = new vscode.EventEmitter<NotesChangeEvent>();
-    private readonly _onStorageWarning = new vscode.EventEmitter<StorageWarningEvent>();
 
     /** Event fired when notes change */
     public readonly onDidChangeNotes = this._onDidChangeNotes.event;
-    /** Event fired when storage warning occurs */
-    public readonly onStorageWarning = this._onStorageWarning.event;
 
     private constructor(context: vscode.ExtensionContext) {
         this.repository = new NotesRepository(context);
@@ -74,7 +66,7 @@ export class NotesService implements vscode.Disposable {
 
         await this.repository.initialize();
         const notes = await this.repository.load();
-        
+
         this.notes.clear();
         for (const note of notes) {
             this.notes.set(note.id, note);
@@ -109,7 +101,7 @@ export class NotesService implements vscode.Disposable {
 
         this.notes.set(note.id, note);
         await this.saveAndNotify('created', [note.id], [note.filePath]);
-        
+
         return note;
     }
 
@@ -143,7 +135,6 @@ export class NotesService implements vscode.Disposable {
     getAll(): Note[] {
         return Array.from(this.notes.values())
             .sort((a, b) => {
-                // Sort by file path, then by line number
                 const fileCompare = a.filePath.localeCompare(b.filePath);
                 if (fileCompare !== 0) {
                     return fileCompare;
@@ -172,7 +163,7 @@ export class NotesService implements vscode.Disposable {
 
         if (filter.searchText) {
             const search = filter.searchText.toLowerCase();
-            notes = notes.filter(n => 
+            notes = notes.filter(n =>
                 n.text.toLowerCase().includes(search) ||
                 n.lineContent.toLowerCase().includes(search) ||
                 n.filePath.toLowerCase().includes(search)
@@ -203,7 +194,6 @@ export class NotesService implements vscode.Disposable {
             updatedAt: new Date().toISOString(),
         };
 
-        // Update hash if line content changed
         if (options.lineContent) {
             updatedNote.lineContentHash = this.hashContent(options.lineContent);
         }
@@ -300,7 +290,6 @@ export class NotesService implements vscode.Disposable {
     async updateFilePath(oldPath: string, newPath: string): Promise<number> {
         const notes = this.getByFile(oldPath);
 
-        // Manually update file paths since it's not in UpdateNoteOptions
         for (const note of notes) {
             const existing = this.notes.get(note.id);
             if (existing) {
@@ -360,27 +349,6 @@ export class NotesService implements vscode.Disposable {
     }
 
     /**
-     * Get storage statistics
-     */
-    getStorageStats(): StorageStats {
-        return this.repository.getStorageStats(Array.from(this.notes.values()));
-    }
-
-    /**
-     * Get current storage type
-     */
-    getStorageType(): StorageType {
-        return this.repository.getStorageType();
-    }
-
-    /**
-     * Migrate to file storage
-     */
-    async migrateToFileStorage(): Promise<void> {
-        await this.repository.migrateToFileStorage();
-    }
-
-    /**
      * Create a backup of notes
      */
     async backup(): Promise<void> {
@@ -409,19 +377,6 @@ export class NotesService implements vscode.Disposable {
         filePaths: string[]
     ): Promise<void> {
         const notes = Array.from(this.notes.values());
-        
-        // Check for storage warnings
-        const warning = this.repository.shouldShowWarning(notes);
-        if (warning.show) {
-            this._onStorageWarning.fire({
-                level: warning.level,
-                stats: warning.stats,
-                message: warning.level === 'critical'
-                    ? 'Notes storage is nearly full. Migrating to file-based storage...'
-                    : 'Notes storage is getting full. Consider cleaning up old notes.',
-            });
-        }
-
         await this.repository.save(notes);
 
         this._onDidChangeNotes.fire({
@@ -448,7 +403,6 @@ export class NotesService implements vscode.Disposable {
      */
     dispose(): void {
         this._onDidChangeNotes.dispose();
-        this._onStorageWarning.dispose();
         this.repository.dispose();
     }
 }

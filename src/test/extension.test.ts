@@ -346,14 +346,14 @@ suite('Notes Feature Tests', () => {
 		assert.ok(commands.includes('developer-tools.importNotes'), 'importNotes command should be registered');
 	});
 
-	test('Manage Notes Storage command exists', async () => {
+	test('Start Session command exists', async () => {
 		const commands = await vscode.commands.getCommands(true);
-		assert.ok(commands.includes('developer-tools.manageNotesStorage'), 'manageNotesStorage command should be registered');
+		assert.ok(commands.includes('developer-tools.startSession'), 'startSession command should be registered');
 	});
 });
 
 suite('Notes Types Tests', () => {
-	const { CATEGORY_CONFIG, STATUS_CONFIG, STORAGE_LIMITS } = require('../notes/types');
+	const { CATEGORY_CONFIG, STATUS_CONFIG } = require('../notes/types');
 
 	test('CATEGORY_CONFIG has all required categories', () => {
 		assert.ok(CATEGORY_CONFIG.note, 'Should have note category');
@@ -364,9 +364,8 @@ suite('Notes Types Tests', () => {
 
 	test('CATEGORY_CONFIG entries have required properties', () => {
 		for (const [key, config] of Object.entries(CATEGORY_CONFIG)) {
-			const cfg = config as { label: string; color: string; svgIconKey: string };
+			const cfg = config as { label: string; svgIconKey: string };
 			assert.ok(cfg.label, `${key} category should have label`);
-			assert.ok(cfg.color, `${key} category should have color`);
 			assert.ok(cfg.svgIconKey, `${key} category should have svgIconKey`);
 		}
 	});
@@ -378,16 +377,16 @@ suite('Notes Types Tests', () => {
 
 	test('STATUS_CONFIG entries have required properties', () => {
 		for (const [key, config] of Object.entries(STATUS_CONFIG)) {
-			const cfg = config as { label: string; color: string; svgIconKey: string };
+			const cfg = config as { label: string; svgIconKey: string };
 			assert.ok(cfg.label, `${key} status should have label`);
-			assert.ok(cfg.color, `${key} status should have color`);
 			assert.ok(cfg.svgIconKey, `${key} status should have svgIconKey`);
 		}
 	});
 
-	test('STORAGE_LIMITS has correct values', () => {
-		assert.ok(STORAGE_LIMITS.WORKSPACE_STATE_MAX > 0, 'Should have max storage limit');
-		assert.ok(STORAGE_LIMITS.WARNING_THRESHOLD > 0 && STORAGE_LIMITS.WARNING_THRESHOLD < 1, 'Warning threshold should be between 0 and 1');
-		assert.ok(STORAGE_LIMITS.CRITICAL_THRESHOLD > STORAGE_LIMITS.WARNING_THRESHOLD, 'Critical threshold should be higher than warning');
+	test('STORAGE_FILES has correct paths', () => {
+		const { STORAGE_FILES } = require('../notes/types');
+		assert.ok(STORAGE_FILES.NOTES_DIR === '.vscode/notes', 'Should have notes directory');
+		assert.ok(STORAGE_FILES.NOTES_FILE === '.vscode/notes/notes.json', 'Should have notes file path');
+		assert.ok(STORAGE_FILES.BACKUP_FILE === '.vscode/notes/notes-backup.json', 'Should have backup file path');
 	});
 });

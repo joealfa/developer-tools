@@ -13,11 +13,6 @@ export type NoteCategory = 'note' | 'todo' | 'fixme' | 'question';
 export type NoteStatus = 'active' | 'orphaned';
 
 /**
- * Storage type for notes persistence
- */
-export type StorageType = 'workspaceState' | 'file';
-
-/**
  * Surrounding context for fuzzy line matching when content changes
  */
 export interface SurroundingContext {
@@ -61,24 +56,8 @@ export interface Note {
 export interface NotesStorageData {
     /** Schema version for migrations */
     version: number;
-    /** Current storage type */
-    storageType: StorageType;
     /** Array of all notes */
     notes: Note[];
-}
-
-/**
- * Storage statistics for monitoring usage
- */
-export interface StorageStats {
-    /** Current size in bytes */
-    size: number;
-    /** Maximum size limit in bytes */
-    limit: number;
-    /** Usage percentage (0-100) */
-    percentage: number;
-    /** Current storage type being used */
-    storageType: StorageType;
 }
 
 /**
@@ -149,68 +128,44 @@ export interface NotesChangeEvent {
 }
 
 /**
- * Storage warning event data
- */
-export interface StorageWarningEvent {
-    /** Warning level */
-    level: 'warning' | 'critical';
-    /** Current storage stats */
-    stats: StorageStats;
-    /** Human-readable message */
-    message: string;
-}
-
-/**
  * Current storage schema version
  */
 export const STORAGE_VERSION = 1;
 
 /**
- * Storage limits (in bytes)
- */
-export const STORAGE_LIMITS = {
-    /** Maximum size for workspaceState (~5MB) */
-    WORKSPACE_STATE_MAX: 5 * 1024 * 1024,
-    /** Warning threshold (80%) */
-    WARNING_THRESHOLD: 0.8,
-    /** Critical threshold for auto-migration (95%) */
-    CRITICAL_THRESHOLD: 0.95,
-} as const;
-
-/**
- * Storage keys
+ * Storage keys for workspaceState (used for migration only)
  */
 export const STORAGE_KEYS = {
-    /** Key for notes data in workspaceState */
+    /** Key for notes data in workspaceState (legacy) */
     NOTES_DATA: 'developer-tools.notes',
-    /** Key for storage type preference */
-    STORAGE_TYPE: 'developer-tools.notes.storageType',
 } as const;
 
 /**
  * File paths for file-based storage
  */
 export const STORAGE_FILES = {
+    /** Directory for all notes data */
+    NOTES_DIR: '.vscode/notes',
     /** Primary notes file */
-    NOTES_FILE: '.vscode/notes.json',
+    NOTES_FILE: '.vscode/notes/notes.json',
     /** Backup file */
-    BACKUP_FILE: '.vscode/notes-backup.json',
+    BACKUP_FILE: '.vscode/notes/notes-backup.json',
 } as const;
 
 /**
  * Category display configuration
  */
-export const CATEGORY_CONFIG: Record<NoteCategory, { label: string; color: string; svgIconKey: string }> = {
-    note: { label: 'Note', color: '#3794ff', svgIconKey: 'notepadText' },
-    todo: { label: 'ToDo', color: '#f9a825', svgIconKey: 'listTodo' },
-    fixme: { label: 'FixMe', color: '#f44336', svgIconKey: 'locateFixed' },
-    question: { label: 'Question', color: '#9c27b0', svgIconKey: 'fileQuestion' },
+export const CATEGORY_CONFIG: Record<NoteCategory, { label: string; svgIconKey: string }> = {
+    note: { label: 'Note', svgIconKey: 'notepadText' },
+    todo: { label: 'ToDo', svgIconKey: 'listTodo' },
+    fixme: { label: 'FixMe', svgIconKey: 'locateFixed' },
+    question: { label: 'Question', svgIconKey: 'fileQuestion' },
 } as const;
 
 /**
  * Status display configuration
  */
-export const STATUS_CONFIG: Record<NoteStatus, { label: string; color: string; svgIconKey: string }> = {
-    active: { label: 'Active', color: '#4caf50', svgIconKey: 'badgeCheck' },
-    orphaned: { label: 'Orphaned', color: '#ff9800', svgIconKey: 'badgeAlert' },
+export const STATUS_CONFIG: Record<NoteStatus, { label: string; svgIconKey: string }> = {
+    active: { label: 'Active', svgIconKey: 'badgeCheck' },
+    orphaned: { label: 'Orphaned', svgIconKey: 'badgeAlert' },
 } as const;

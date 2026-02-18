@@ -1,13 +1,13 @@
 {
   "name": "developer-utilities",
   "displayName": "Developer Tools",
-  "description": "Empowering Developers with Smart, Secure Utilities. Boost your productivity with lightweight tools for generating UUIDs, GUIDs, secure passwords, and inline code notes. Designed for speed, simplicity, and seamless integration into your daily workflow",
+  "description": "A productivity toolkit for developers: generate UUIDs/GUIDs, create secure passwords, annotate code lines with persistent notes, track coding sessions, monitor listening ports, and analyze code complexity — all from the VS Code sidebar.",
   "publisher": "joealfa",
   "repository": {
     "url": "https://github.com/joealfa/developer-tools"
   },
   "icon": "images/icon.png",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "engines": {
     "vscode": "^1.109.0"
   },
@@ -82,10 +82,69 @@
         "icon": "$(import)"
       },
       {
-        "command": "developer-tools.manageNotesStorage",
-        "title": "Manage Notes Storage",
-        "category": "Developer Tools",
-        "icon": "$(database)"
+        "command": "developer-tools.startSession",
+        "title": "Start Session Tracking",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.stopSession",
+        "title": "Stop Session Tracking",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.resetSession",
+        "title": "Reset Session",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.showSessionSummary",
+        "title": "Show Session Summary",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.showSessionHistory",
+        "title": "Show Session History",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.deleteSession",
+        "title": "Delete Session",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.deleteAllSessions",
+        "title": "Delete All Sessions",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.refreshPorts",
+        "title": "Refresh Port List",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.killPort",
+        "title": "Kill Process on Port",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.showPortManager",
+        "title": "Show Port Manager",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.toggleComplexityHints",
+        "title": "Toggle Complexity Hints",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.analyzeFileComplexity",
+        "title": "Analyze File Complexity",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.showComplexityReport",
+        "title": "Show Complexity Report",
+        "category": "Developer Tools"
       }
     ],
     "views": {
@@ -94,7 +153,7 @@
           "type": "webview",
           "id": "developer-tools.passwordGenerator",
           "name": "Password Generator",
-          "icon": "$(key)",
+          "icon": "$(lock)",
           "contextualTitle": "Password Generator"
         },
         {
@@ -103,6 +162,22 @@
           "name": "Notes",
           "icon": "$(note)",
           "contextualTitle": "Notes"
+        },
+        {
+          "type": "webview",
+          "id": "developer-tools.sessionTracker",
+          "name": "Session Tracker",
+          "icon": "$(clock)",
+          "contextualTitle": "Session Tracker",
+          "when": "config.developer-tools.session.enabled"
+        },
+        {
+          "type": "webview",
+          "id": "developer-tools.portManager",
+          "name": "Port Manager",
+          "icon": "$(plug)",
+          "contextualTitle": "Port Manager",
+          "when": "config.developer-tools.ports.enabled"
         }
       ],
       "developer-tools-note-editor": [
@@ -121,7 +196,7 @@
         {
           "id": "developer-tools",
           "title": "Developer Tools",
-          "icon": "$(key)"
+          "icon": "$(tools)"
         },
         {
           "id": "developer-tools-note-editor",
@@ -164,6 +239,14 @@
         {
           "command": "developer-tools.showNotesPanel",
           "when": "editorIsOpen"
+        },
+        {
+          "command": "developer-tools.analyzeFileComplexity",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "developer-tools.showComplexityReport",
+          "when": "editorIsOpen"
         }
       ]
     },
@@ -187,7 +270,64 @@
         "developer-tools.notes.autoExport": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically export notes to .vscode/notes.json when changes are made."
+          "description": "Automatically export notes to .vscode/notes/ when changes are made."
+        },
+        "developer-tools.notes.gitignore": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, automatically adds .vscode/notes/ to .gitignore."
+        },
+        "developer-tools.session.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the Session Tracker feature in the sidebar."
+        },
+        "developer-tools.session.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start session tracking when a workspace is opened."
+        },
+        "developer-tools.session.idleTimeoutMinutes": {
+          "type": "number",
+          "default": 5,
+          "description": "Minutes of inactivity before time is no longer counted as active."
+        },
+        "developer-tools.ports.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the Port Manager feature in the sidebar."
+        },
+        "developer-tools.ports.autoRefreshSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "description": "Seconds between automatic port list refreshes. Set to 0 to disable."
+        },
+        "developer-tools.ports.showEstablished": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show ESTABLISHED connections in addition to LISTEN."
+        },
+        "developer-tools.complexity.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show inline complexity hints on functions."
+        },
+        "developer-tools.complexity.minLevel": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "very-high"],
+          "default": "moderate",
+          "description": "Minimum complexity level to display hints for."
+        },
+        "developer-tools.complexity.thresholds": {
+          "type": "object",
+          "default": { "moderate": 6, "high": 11, "veryHigh": 21 },
+          "description": "Cyclomatic complexity thresholds for each level."
+        },
+        "developer-tools.complexity.showCognitive": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show cognitive complexity alongside cyclomatic."
         }
       }
     }

@@ -1,218 +1,273 @@
 # Developer Tools
 
-A collection of useful development utilities for Visual Studio Code.
+A productivity toolkit for Visual Studio Code developers. All features live in the **Developer Tools** sidebar — accessible from the Activity Bar.
 
 ## Features
 
-All tools are accessible from the **Developer Tools** icon in the Activity Bar (sidebar).
+- [UUID / GUID Generation](#uuid--guid-generation)
+- [Password Generator](#password-generator)
+- [Code Notes](#code-notes)
+- [Session Tracker](#session-tracker)
+- [Port Manager](#port-manager)
+- [Code Complexity Analysis](#code-complexity-analysis)
 
-### UUID/GUID Generation
+---
 
-Insert UUIDs or GUIDs at your cursor position with a single command. Perfect for generating unique identifiers in your code, configuration files, or documentation.
+### UUID / GUID Generation
 
-**Available Commands:**
+Insert UUIDs and GUIDs at the cursor position from the Command Palette. Supports all four format variants.
 
-- **Insert UUID** - Generates a lowercase UUID with hyphens (e.g., `550e8400-e29b-41d4-a716-446655440000`)
-- **Insert GUID (Uppercase)** - Generates an uppercase GUID with hyphens (e.g., `550E8400-E29B-41D4-A716-446655440000`)
-- **Insert UUID (Compact)** - Generates a lowercase UUID without hyphens (e.g., `550e8400e29b41d4a716446655440000`)
-- **Insert GUID (Compact, Uppercase)** - Generates an uppercase GUID without hyphens (e.g., `550E8400E29B41D4A716446655440000`)
+| Command | Output example |
+|---------|---------------|
+| **Insert UUID** | `550e8400-e29b-41d4-a716-446655440000` |
+| **Insert GUID (Uppercase)** | `550E8400-E29B-41D4-A716-446655440000` |
+| **Insert UUID (Compact)** | `550e8400e29b41d4a716446655440000` |
+| **Insert GUID (Compact, Uppercase)** | `550E8400E29B41D4A716446655440000` |
 
-**Multiple Cursor Support:**
+**Multiple cursors** — each cursor gets a unique identifier.
+**Selection replacement** — selecting text across multiple lines replaces each line with one UUID/GUID.
 
-All UUID/GUID commands support multiple cursors - each cursor will receive a unique UUID/GUID, making it easy to generate multiple identifiers at once.
-
-**Selection Replacement:**
-
-When you select text spanning multiple lines and run a UUID/GUID command, it will replace the selection with one UUID/GUID per line.
+---
 
 ### Password Generator
 
-Generate secure, customizable passwords directly in VS Code's sidebar.
+Generate cryptographically secure passwords in the sidebar. Uses Node.js `crypto` with rejection sampling to eliminate modulo bias.
 
-**Command:** `Developer Tools: Generate Password`
+**Options:**
+- Length: 5–128 characters (default 14)
+- Character sets: Uppercase, Lowercase, Numbers, Special (`!@#$%^&*`)
+- Minimum counts for numbers and special characters
+- Avoid ambiguous characters (`0`, `O`, `I`, `l`, `1`)
 
-**Features:**
-
-- **Configurable length** (5-128 characters)
-- **Character set options:**
-  - Uppercase letters (A-Z)
-  - Lowercase letters (a-z)
-  - Numbers (0-9)
-  - Special characters (!@#$%^&*)
-- **Minimum requirements** for numbers and special characters
-- **Avoid ambiguous characters** option (excludes 0, O, I, l, 1, etc.)
-- **Copy to clipboard** or **Insert directly** into your document
-- **Auto-regenerate** when options change
+**Actions:** Copy to clipboard or insert directly into the active document.
 
 **Usage:**
-
 1. Click the Developer Tools icon in the Activity Bar
-2. Expand the "Password Generator" section
-3. Configure your password requirements
-4. Click "Copy" or "Insert to Document"
+2. Expand **Password Generator**
+3. Adjust options — the password regenerates automatically
+4. Click **Copy** or **Insert**
+
+---
 
 ### Code Notes
 
-Add persistent notes to specific lines in your code files. Notes are stored per-workspace and automatically track line changes as you edit your code.
+Attach persistent notes to specific lines in your code. Notes are stored in `.vscode/notes/notes.json` and track the code as you edit.
 
 **Features:**
+- **Four categories:** Note, ToDo, FixMe, Question — each with a distinct gutter icon
+- **Inline Note Editor** — sidebar panel that shows notes for the current cursor line; auto-updates as you move the cursor
+- **Notes Table** — searchable, filterable list of all notes across the workspace with a preview of each note's text
+- **Line tracking** — notes shift automatically when lines are inserted or deleted above them
+- **Content-hash detection** — notes are orphaned when their anchored line changes significantly, preventing stale references
+- **Surrounding context** — fuzzy re-anchoring using neighboring lines to find a moved note's new location
+- **File rename/delete tracking** — notes follow files when they are renamed or moved inside the workspace
+- **Gutter decorations** — SVG icons in the editor gutter show which lines have notes; orphaned notes display with a distinct icon
+- **Search & filter** — filter by category, status (active/orphaned), or free-text search
+- **Grouping** — group the Notes Table by file, category, or status
+- **Bulk operations** — multi-select notes for bulk delete or category change
+- **Import/Export** — export notes to JSON and import them back
 
-- **Line-attached notes** - Add notes to any line in your code files (.ts, .js, .tsx, .jsx, .cs, etc.)
-- **Categories** - Organize notes as Note, ToDo, FixMe, or Question with color-coded icons
-- **Inline Note Editor** - Edit notes directly in the sidebar when clicking on lines with notes
-- **Line tracking** - Notes automatically move when you insert or delete lines above them
-- **Orphaned note detection** - Notes are marked as "orphaned" when their original line content changes
-- **File rename tracking** - Notes follow files when renamed or moved within the workspace
-- **Notes Table** - View all notes across your project in a searchable, filterable list
-- **Search & filter** - Filter notes by category, status, or search text
-- **Grouping** - Group notes by file, category, or status
-- **Bulk operations** - Delete all orphaned notes or clear all notes at once
-- **Import/Export** - Export notes to JSON and import them back
-- **Gutter decorations** - Visual indicators in the editor gutter showing which lines have notes
+**Commands:**
 
-**Available Commands:**
+| Command | Keyboard shortcut | Description |
+|---------|------------------|-------------|
+| Add Note | `Ctrl+Alt+N` / `Cmd+Alt+N` | Add a note to the current line |
+| Edit Note | — | Edit notes on the current line |
+| Delete Note | — | Delete notes from the current line |
+| Show Notes Panel | `Ctrl+Alt+M` / `Cmd+Alt+M` | Focus the Notes Table in the sidebar |
+| Export Notes | — | Export all notes to a JSON file |
+| Import Notes | — | Import notes from a JSON file |
 
-| Command               | Keyboard Shortcut | Description                              |
-|-----------------------|-------------------|------------------------------------------|
-| Add Note              | `Ctrl+Alt+N`      | Add a note to the current line           |
-| Edit Note             | -                 | Edit notes on the current line           |
-| Delete Note           | -                 | Delete notes from the current line       |
-| Show Notes Panel      | `Ctrl+Alt+M`      | Show the notes list in sidebar           |
-| Export Notes          | -                 | Export all notes to a JSON file          |
-| Import Notes          | -                 | Import notes from a JSON file            |
-| Manage Notes Storage  | -                 | View storage stats and migrate storage   |
+**Adding a note:**
+1. Place your cursor on the target line
+2. Press `Ctrl+Alt+N` (or right-click → *Add Note to Line*)
+3. Type your note and pick a category in the Note Editor panel
+4. Click **Add Note**
 
-**Usage:**
-
-1. Place your cursor on the line where you want to add a note
-2. Press `Ctrl+Alt+N` or run "Developer Tools: Add Note" from the Command Palette
-3. Enter your note text and select a category in the Note Editor panel
-4. Click "Add Note" to save
-
-**Viewing Notes:**
-
-- **Note Editor**: Expand "Note Editor" in the Developer Tools sidebar to edit notes for the current line
-- **Notes Table**: Expand "Notes" in the Developer Tools sidebar to see all notes with filtering and grouping
-- **Gutter Icons**: Look for colored icons in the editor gutter indicating lines with notes
+**Viewing notes:**
+- **Gutter icons** — colored SVG icons appear on lines that have notes
+- **Note Editor** — expands automatically when your cursor lands on a noted line; shows all notes for that line and lets you edit or delete them
+- **Notes Table** — full searchable/filterable list in the Developer Tools sidebar; click a row to navigate to the line, double-click to open the Note Editor
 
 **Storage:**
+Notes are saved to `.vscode/notes/notes.json` in your workspace. This file can be committed to version control if you want notes to be shared with your team, or added to `.gitignore` to keep them private (see `developer-tools.notes.gitignore` setting).
 
-Notes are stored in VS Code's workspace state. If storage reaches 95% capacity, you'll be prompted to migrate to file-based storage (`.vscode/notes.json`), which supports larger datasets and can be version-controlled.
+---
 
-## Usage
+### Session Tracker
 
-1. Click the **Developer Tools** icon in the Activity Bar to access all tools
-2. For commands, open the Command Palette (`Ctrl+Shift+P` on Windows/Linux, `Cmd+Shift+P` on macOS)
-3. Type "Developer Tools" to see all available commands
-4. Select the desired command
+Track how long you spend coding and which files you edit during a session. Must be enabled in settings first.
 
-## Custom Keyboard Shortcuts
+**Features:**
+- Start, stop, and reset sessions from the sidebar or Command Palette
+- Live timer showing elapsed session time
+- File-level breakdown: edits, lines added/removed, estimated time
+- Configurable idle timeout (inactive time is excluded from estimates)
+- Session recovery — if VS Code closes unexpectedly, the previous session is recovered on next launch
+- Session history with per-session Markdown or JSON export
+- Auto-start on workspace open (optional)
 
-This extension includes default keyboard shortcuts for notes functionality. You can configure additional keybindings that don't conflict with your existing setup.
+**Enable Session Tracker:**
+1. Open Settings (`Ctrl+,` / `Cmd+,`)
+2. Search for `developer-tools.session.enabled`
+3. Enable the toggle — the **Session Tracker** panel appears in the sidebar
 
-### How to Add Keyboard Shortcuts
+**Commands:**
 
-**Method 1: Using the Keyboard Shortcuts UI**
+| Command | Description |
+|---------|-------------|
+| Start Session Tracking | Begin a new session |
+| Stop Session Tracking | End and save the current session to history |
+| Reset Session | Clear the current session data |
+| Show Session Summary | Focus the Session Tracker sidebar panel |
+| Show Session History | Focus the Session Tracker sidebar panel (history section) |
+| Delete Session | Remove a session from history |
+| Delete All Sessions | Clear all session history |
 
-1. Open Keyboard Shortcuts: `Ctrl+K Ctrl+S` (Windows/Linux) or `Cmd+K Cmd+S` (macOS)
-2. Search for "Developer Tools"
-3. Click the **+** icon next to the command you want to bind
-4. Press your desired key combination
-5. Press `Enter` to confirm
+---
 
-**Method 2: Using keybindings.json**
+### Port Manager
 
-1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-2. Type "Preferences: Open Keyboard Shortcuts (JSON)"
-3. Add your keybindings to the array:
+View all listening TCP ports in your system, see the process behind each port, and kill processes without leaving VS Code. Must be enabled in settings first.
 
-```json
-[
-  {
-    "key": "ctrl+shift+u",
-    "command": "developer-tools.insertUuid"
-  },
-  {
-    "key": "ctrl+shift+alt+u",
-    "command": "developer-tools.insertUuidCompact"
-  },
-  {
-    "key": "ctrl+shift+g",
-    "command": "developer-tools.insertGuid"
-  },
-  {
-    "key": "ctrl+shift+alt+g",
-    "command": "developer-tools.insertGuidCompact"
-  },
-  {
-    "key": "ctrl+alt+p",
-    "command": "developer-tools.generatePassword"
-  }
-]
+**Features:**
+- Auto-refreshes the port list on a configurable interval
+- Shows port number, PID, process name, and command
+- Filter by port number or process name
+- Two-step kill confirmation to prevent accidents
+- Manual refresh button
+- Toggle auto-refresh on/off
+
+**Enable Port Manager:**
+1. Open Settings (`Ctrl+,` / `Cmd+,`)
+2. Search for `developer-tools.ports.enabled`
+3. Enable the toggle — the **Port Manager** panel appears in the sidebar
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| Refresh Port List | Force an immediate scan |
+| Kill Process on Port | Pick a port from a list and kill its process |
+| Show Port Manager | Focus the Port Manager sidebar panel |
+
+> **Note:** The Port Manager uses `netstat` (Linux/macOS/Windows) or `lsof` (macOS/Linux) to scan ports. It may require elevated permissions to kill some processes.
+
+---
+
+### Code Complexity Analysis
+
+Display inline complexity hints on function definitions. Supports TypeScript, JavaScript (including JSX/TSX), Python, Go, Java, C#, and Rust.
+
+**Metrics:**
+- **Cyclomatic Complexity (CC)** — counts independent control-flow paths
+- **Cognitive Complexity (COG)** — measures how hard the code is to understand, weighting nested structures more heavily
+
+**Severity levels:**
+
+| Level | Default CC threshold | Hint color |
+|-------|---------------------|-----------|
+| Low | < 6 | Blue (info) |
+| Moderate | >= 6 | Yellow (warning) |
+| High | >= 11 | Red (error) |
+| Very High | >= 21 | Red bold + background |
+
+Hints appear inline after the function signature, e.g.:
+
+```
+async function processData(items) {   ⊘ CC:14 COG:18
 ```
 
-### Available Command IDs
+**Commands:**
 
-| Command                          | ID                                   |
-|----------------------------------|--------------------------------------|
-| Insert UUID                      | `developer-tools.insertUuid`         |
-| Insert UUID (Compact)            | `developer-tools.insertUuidCompact`  |
-| Insert GUID (Uppercase)          | `developer-tools.insertGuid`         |
-| Insert GUID (Compact, Uppercase) | `developer-tools.insertGuidCompact`  |
-| Generate Password                | `developer-tools.generatePassword`   |
-| Add Note                         | `developer-tools.addNote`            |
-| Edit Note                        | `developer-tools.editNote`           |
-| Delete Note                      | `developer-tools.deleteNote`         |
-| Show Notes Panel                 | `developer-tools.showNotesPanel`     |
-| Export Notes                     | `developer-tools.exportNotes`        |
-| Import Notes                     | `developer-tools.importNotes`        |
-| Manage Notes Storage             | `developer-tools.manageNotesStorage` |
+| Command | Description |
+|---------|-------------|
+| Toggle Complexity Hints | Enable or disable inline hints |
+| Analyze File Complexity | Force re-analysis of the current file |
+| Show Complexity Report | Print a sorted complexity report to the Output panel |
 
-## Requirements
+> **Note:** Analysis uses regex-based heuristics (not an AST), so accuracy may vary for unusual code patterns. Files over 10,000 lines are skipped for performance.
 
-No external dependencies required. This extension uses Node.js built-in `crypto` module for UUID and password generation.
+---
 
 ## Extension Settings
 
-This extension contributes the following settings:
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `developer-tools.notes.autoExport` | boolean | `false` | Auto-export notes to `.vscode/notes/` on every change |
+| `developer-tools.notes.gitignore` | boolean | `false` | Automatically add `.vscode/notes/` to `.gitignore` |
+| `developer-tools.session.enabled` | boolean | `false` | Show the Session Tracker panel in the sidebar |
+| `developer-tools.session.autoStart` | boolean | `false` | Auto-start session tracking when a workspace opens |
+| `developer-tools.session.idleTimeoutMinutes` | number | `5` | Minutes of inactivity before time stops counting |
+| `developer-tools.ports.enabled` | boolean | `false` | Show the Port Manager panel in the sidebar |
+| `developer-tools.ports.autoRefreshSeconds` | number | `10` | Port list auto-refresh interval (0 = disabled) |
+| `developer-tools.ports.showEstablished` | boolean | `false` | Include ESTABLISHED connections (not just LISTEN) |
+| `developer-tools.complexity.enabled` | boolean | `false` | Show inline complexity hints on functions |
+| `developer-tools.complexity.minLevel` | enum | `"moderate"` | Minimum severity to display: `low`, `moderate`, `high`, `very-high` |
+| `developer-tools.complexity.thresholds` | object | `{moderate:6, high:11, veryHigh:21}` | Cyclomatic complexity thresholds |
+| `developer-tools.complexity.showCognitive` | boolean | `true` | Show cognitive complexity alongside cyclomatic |
 
-- `developer-tools.notes.autoExport`: Automatically export notes to `.vscode/notes.json` when changes are made (default: `false`)
+---
 
-## Release Notes
+## Custom Keyboard Shortcuts
 
-### 1.0.3
-- SVG Lucide icons replace emojis in category/status dropdowns and gutter decorations
-- Updated category labels: ToDo, FixMe
-- Removed legacy Notes Panel (replaced by Note Editor + Notes Table in 1.0.1)
-- Code cleanup: deduplicated shared utilities, removed unused code
+The extension ships with two default keybindings for notes. You can add more via VS Code's keyboard shortcuts.
 
-### 1.0.2
-- Click a note in the Notes Table to navigate to its file and line
-- Double-click a note to navigate and open the Note Editor
-- Note Editor now properly focuses when adding notes via context menu
-- Add-note form hides when focus returns to the code editor
-- Password generator now uses fully cryptographic RNG (no `Math.random()`)
-- Fixed line tracker hash mismatch that incorrectly orphaned notes on edits
-- Fixed crash when adding notes after lines are deleted
-- Fixed folder rename path corruption bug
-- XSS hardening in password display
+**Method 1: Keyboard Shortcuts UI**
+1. Open Keyboard Shortcuts: `Ctrl+K Ctrl+S` (Windows/Linux) or `Cmd+K Cmd+S` (macOS)
+2. Search for `Developer Tools`
+3. Click **+** next to any command and press your key combination
 
-### 1.0.1
-- Activity Bar integration with consolidated Developer Tools sidebar
-- Password Generator moved to sidebar for quick access
-- Inline Note Editor for editing notes directly in sidebar
-- Redesigned Notes Table with cleaner row-based layout
-- Code architecture improvements
+**Method 2: keybindings.json**
+1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+2. Run *Preferences: Open Keyboard Shortcuts (JSON)*
+3. Add entries like:
 
-### 1.0.0
-- First stable release
-- [Developer Tools on VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=joealfa.developer-utilities)
+```json
+[
+  { "key": "ctrl+shift+u",     "command": "developer-tools.insertUuid" },
+  { "key": "ctrl+shift+alt+u", "command": "developer-tools.insertUuidCompact" },
+  { "key": "ctrl+shift+g",     "command": "developer-tools.insertGuid" },
+  { "key": "ctrl+shift+alt+g", "command": "developer-tools.insertGuidCompact" },
+  { "key": "ctrl+alt+p",       "command": "developer-tools.generatePassword" },
+  { "key": "ctrl+alt+c",       "command": "developer-tools.toggleComplexityHints" }
+]
+```
 
-### 0.0.2
-- Code Notes feature with line tracking, categories, and import/export
+**All command IDs:**
 
-### 0.0.1
-- Initial release with UUID/GUID generation and Password Generator
+| Command | ID |
+|---------|----|
+| Insert UUID | `developer-tools.insertUuid` |
+| Insert UUID (Compact) | `developer-tools.insertUuidCompact` |
+| Insert GUID (Uppercase) | `developer-tools.insertGuid` |
+| Insert GUID (Compact, Uppercase) | `developer-tools.insertGuidCompact` |
+| Generate Password | `developer-tools.generatePassword` |
+| Add Note | `developer-tools.addNote` |
+| Edit Note | `developer-tools.editNote` |
+| Delete Note | `developer-tools.deleteNote` |
+| Show Notes Panel | `developer-tools.showNotesPanel` |
+| Export Notes | `developer-tools.exportNotes` |
+| Import Notes | `developer-tools.importNotes` |
+| Start Session Tracking | `developer-tools.startSession` |
+| Stop Session Tracking | `developer-tools.stopSession` |
+| Reset Session | `developer-tools.resetSession` |
+| Show Session Summary | `developer-tools.showSessionSummary` |
+| Show Session History | `developer-tools.showSessionHistory` |
+| Delete Session | `developer-tools.deleteSession` |
+| Delete All Sessions | `developer-tools.deleteAllSessions` |
+| Refresh Port List | `developer-tools.refreshPorts` |
+| Kill Process on Port | `developer-tools.killPort` |
+| Show Port Manager | `developer-tools.showPortManager` |
+| Toggle Complexity Hints | `developer-tools.toggleComplexityHints` |
+| Analyze File Complexity | `developer-tools.analyzeFileComplexity` |
+| Show Complexity Report | `developer-tools.showComplexityReport` |
+
+---
+
+## Requirements
+
+No external dependencies required. This extension uses only Node.js built-in modules (`crypto`) and VS Code's built-in APIs.
 
 ---
 

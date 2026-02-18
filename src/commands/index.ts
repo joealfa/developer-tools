@@ -7,6 +7,7 @@ import {
 	CATEGORY_CONFIG,
 } from '../notes';
 import { ExtensionState } from '../extensionState';
+import { SessionService } from '../session';
 
 /**
  * Command definitions for the extension
@@ -47,7 +48,6 @@ const commands: CommandDefinition[] = [
 	{
 		id: 'developer-tools.generatePassword',
 		handler: async () => {
-			// Open the Developer Tools sidebar and focus on Password Generator view
 			await vscode.commands.executeCommand('developer-tools.passwordGenerator.focus');
 		}
 	},
@@ -62,11 +62,9 @@ const commands: CommandDefinition[] = [
 			}
 
 			const noteEditorProvider = ExtensionState.getNoteEditorProvider();
-			
 			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
 			const lineNumber = editor.selection.active.line;
-			
-			// Always show the Note Editor with add form, without stealing focus
+
 			if (noteEditorProvider) {
 				await noteEditorProvider.showForLine(filePath, lineNumber, true);
 			}
@@ -84,7 +82,7 @@ const commands: CommandDefinition[] = [
 			const notesService = NotesService.getInstance();
 			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
 			const lineNumber = editor.selection.active.line;
-			
+
 			if (!notesService.hasNotesForLine(filePath, lineNumber)) {
 				vscode.window.showInformationMessage('No notes on this line. Use "Add Note" to create one.');
 				return;
@@ -109,7 +107,7 @@ const commands: CommandDefinition[] = [
 			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
 			const lineNumber = editor.selection.active.line;
 			const notes = notesService.getByLine(filePath, lineNumber);
-			
+
 			if (notes.length === 0) {
 				vscode.window.showInformationMessage('No notes on this line.');
 				return;
@@ -126,7 +124,6 @@ const commands: CommandDefinition[] = [
 					vscode.window.showInformationMessage('Note deleted.');
 				}
 			} else {
-				// Multiple notes - let user choose
 				const items = notes.map(note => ({
 					label: note.text.substring(0, 50) + (note.text.length > 50 ? '...' : ''),
 					description: CATEGORY_CONFIG[note.category].label,
@@ -148,7 +145,6 @@ const commands: CommandDefinition[] = [
 	{
 		id: 'developer-tools.showNotesPanel',
 		handler: async () => {
-			// Open the Developer Tools sidebar and focus on Notes view
 			await vscode.commands.executeCommand('developer-tools.notesTable.focus');
 		}
 	},
@@ -170,40 +166,184 @@ const commands: CommandDefinition[] = [
 			exportService.dispose();
 		}
 	},
+	// Session Tracker commands
 	{
-		id: 'developer-tools.manageNotesStorage',
+		id: 'developer-tools.startSession',
+		handler: () => {
+			const sessionService = SessionService.getInstance();
+			sessionService.startSession();
+			vscode.window.showInformationMessage('Session tracking started.');
+		}
+	},
+	{
+		id: 'developer-tools.stopSession',
 		handler: async () => {
-			const notesService = NotesService.getInstance();
-			const stats = notesService.getStorageStats();
-			const storageType = notesService.getStorageType();
-
-			const sizeKB = (stats.size / 1024).toFixed(2);
-			const limitMB = (stats.limit / (1024 * 1024)).toFixed(0);
-
-			const message = `Notes Storage\n\nType: ${storageType}\nUsage: ${sizeKB} KB (${stats.percentage.toFixed(1)}%)\nLimit: ${limitMB} MB`;
-
-			const action = await vscode.window.showInformationMessage(
-				message,
-				'Migrate to File Storage',
-				'Export Notes',
-				'Close'
-			);
-
-			if (action === 'Migrate to File Storage') {
-				await notesService.migrateToFileStorage();
-				vscode.window.showInformationMessage('Migrated to file-based storage.');
-			} else if (action === 'Export Notes') {
-				await vscode.commands.executeCommand('developer-tools.exportNotes');
+			const sessionService = SessionService.getInstance();
+			await sessionService.stopSession();
+			vscode.window.showInformationMessage('Session tracking stopped and saved to history.');
+		}
+	},
+	{
+		id: 'developer-tools.resetSession',
+		handler: () => {
+			const sessionService = SessionService.getInstance();
+			sessionService.resetSession();
+			vscode.window.showInformationMessage('Session reset.');
+		}
+	},
+	{
+		id: 'developer-tools.showSessionSummary',
+		handler: async () => {
+			await vscode.commands.executeCommand('developer-tools.sessionTracker.focus');
+		}
+	},
+	{
+		id: 'developer-tools.showSessionHistory',
+		handler: async () => {
+			await vscode.commands.executeCommand('developer-tools.sessionTracker.focus');
+		}
+	},
+	{
+		id: 'developer-tools.deleteSession',
+		handler: async () => {
+			const sessionService = SessionService.getInstance();
+			const history = await sessionService.getSessionHistory();
+			if (history.length === 0) {
+				vscode.window.showInformationMessage('No session history to delete.');
+				return;
+			}
+			const items = history.map(h => ({
+				label: new Date(h.startedAt).toLocaleString(),
+				description: `${h.totalFiles} files, ${h.status}`,
+				id: h.id,
+			}));
+			const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select session to delete' });
+			if (selected) {
+				await sessionService.deleteHistorySession(selected.id);
+				vscode.window.showInformationMessage('Session deleted.');
 			}
 		}
-	}
+	},
+	{
+		id: 'developer-tools.deleteAllSessions',
+		handler: async () => {
+			const confirmed = await vscode.window.showWarningMessage(
+				'Delete all session history?',
+				{ modal: true },
+				'Delete All'
+			);
+			if (confirmed === 'Delete All') {
+				const sessionService = SessionService.getInstance();
+				await sessionService.deleteAllHistory();
+				vscode.window.showInformationMessage('All session history deleted.');
+			}
+		}
+	},
+	// Port Manager commands
+	{
+		id: 'developer-tools.refreshPorts',
+		handler: async () => {
+			const portService = ExtensionState.getPortService();
+			if (portService) {
+				await portService.scan();
+			}
+		}
+	},
+	{
+		id: 'developer-tools.killPort',
+		handler: async () => {
+			const portService = ExtensionState.getPortService();
+			if (!portService) { return; }
+			const ports = portService.getPorts();
+			if (ports.length === 0) {
+				vscode.window.showInformationMessage('No listening ports found.');
+				return;
+			}
+			const items = ports.map(p => ({
+				label: `:${p.port}`,
+				description: `PID ${p.pid} - ${p.processName}`,
+				pid: p.pid,
+			}));
+			const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select port to kill' });
+			if (selected) {
+				const success = await portService.killProcess(selected.pid);
+				if (success) {
+					vscode.window.showInformationMessage(`Process ${selected.pid} terminated.`);
+					await portService.scan();
+				} else {
+					vscode.window.showErrorMessage(`Failed to kill process ${selected.pid}.`);
+				}
+			}
+		}
+	},
+	{
+		id: 'developer-tools.showPortManager',
+		handler: async () => {
+			await vscode.commands.executeCommand('developer-tools.portManager.focus');
+		}
+	},
+	// Complexity commands
+	{
+		id: 'developer-tools.toggleComplexityHints',
+		handler: async () => {
+			const config = vscode.workspace.getConfiguration('developer-tools');
+			const current = config.get<boolean>('complexity.enabled', true);
+			await config.update('complexity.enabled', !current, vscode.ConfigurationTarget.Global);
+			vscode.window.showInformationMessage(`Complexity hints ${!current ? 'enabled' : 'disabled'}.`);
+		}
+	},
+	{
+		id: 'developer-tools.analyzeFileComplexity',
+		handler: () => {
+			const complexityService = ExtensionState.getComplexityService();
+			const editor = vscode.window.activeTextEditor;
+			if (!editor || !complexityService) { return; }
+			complexityService.analyzeDocument(editor.document);
+		}
+	},
+	{
+		id: 'developer-tools.showComplexityReport',
+		handler: () => {
+			const complexityService = ExtensionState.getComplexityService();
+			const editor = vscode.window.activeTextEditor;
+			if (!editor || !complexityService) {
+				vscode.window.showInformationMessage('Open a file to see complexity report.');
+				return;
+			}
+
+			complexityService.analyzeDocument(editor.document);
+			const results = complexityService.getComplexity(editor.document.uri);
+
+			if (results.length === 0) {
+				vscode.window.showInformationMessage('No functions found or language not supported.');
+				return;
+			}
+
+			const sorted = [...results].sort((a, b) => b.cyclomaticComplexity - a.cyclomaticComplexity);
+			const channel = vscode.window.createOutputChannel('Complexity Report');
+			channel.clear();
+			channel.appendLine(`Complexity Report: ${vscode.workspace.asRelativePath(editor.document.uri)}`);
+			channel.appendLine('='.repeat(60));
+			channel.appendLine('');
+			channel.appendLine(`${'Function'.padEnd(35)} ${'CC'.padStart(4)} ${'COG'.padStart(5)} ${'Lines'.padStart(6)}`);
+			channel.appendLine('-'.repeat(60));
+
+			for (const r of sorted) {
+				channel.appendLine(
+					`${r.functionName.padEnd(35)} ${String(r.cyclomaticComplexity).padStart(4)} ${String(r.cognitiveComplexity).padStart(5)} ${String(r.lineCount).padStart(6)}`
+				);
+			}
+
+			channel.show();
+		}
+	},
 ];
 
 /**
  * Register all commands and return disposables
  */
 export function registerCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
-	return commands.map(cmd => 
+	return commands.map(cmd =>
 		vscode.commands.registerCommand(cmd.id, () => cmd.handler(context))
 	);
 }

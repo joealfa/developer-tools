@@ -76,7 +76,6 @@ export class NotesExportService implements vscode.Disposable {
 
             const data: NotesStorageData = {
                 version: STORAGE_VERSION,
-                storageType: 'file',
                 notes,
             };
 

@@ -4,6 +4,22 @@ All notable changes to the "developer-tools" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.4] - 2026-02-18
+
+### Added
+- **Note text preview in Notes Table** - Each note row now shows a truncated preview of the note content directly in the list, so you can read notes without clicking into them
+
+### Fixed
+- **Dead code removal** - Removed an unreachable `${false ? ...}` auto-focus code block from the Note Editor webview template
+- **Lint fix** - Wrapped `const` declaration inside `case 'selectAll'` in the Notes Table handler with braces to comply with no-case-declarations
+
+### Changed
+- **Removed redundant window state listener** - Removed a duplicate `onDidChangeWindowState` handler in Note Editor that was already covered by `onDidChangeActiveTextEditor` and the cursor tracking listener
+- **Package description** - Updated to reflect all six feature modules (UUID/GUID, Password, Notes, Session, Ports, Complexity)
+
+### Documentation
+- **README rewrite** - Complete overhaul: added full documentation for Session Tracker, Port Manager, and Code Complexity Analysis (previously undocumented); corrected the notes storage description (file-based, not workspaceState); removed reference to a non-existent `manageNotesStorage` command; added a complete settings reference table and all command IDs
+
 ## [1.0.3] - 2026-02-17
 
 ### Changed

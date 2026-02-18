@@ -35,19 +35,6 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
             })
         );
 
-        // Listen to window state changes to reset form when user switches back to editor
-        this.disposables.push(
-            vscode.window.onDidChangeWindowState((state) => {
-                if (state.focused) {
-                    // Window regained focus - if we're showing add form, reset it
-                    if (this.showAddForm) {
-                        this.showAddForm = false;
-                        this.updateContent();
-                    }
-                }
-            })
-        );
-
         // Listen to active text editor changes to reset form when user switches to editor
         this.disposables.push(
             vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -364,10 +351,6 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
             width: 11px;
             height: 11px;
         }
-        .category-note { background-color: #3794ff33; color: #3794ff; }
-        .category-todo { background-color: #f9a82533; color: #f9a825; }
-        .category-fixme { background-color: #f4433633; color: #f44336; }
-        .category-question { background-color: #9c27b033; color: #9c27b0; }
         .note-text {
             width: 100%;
             min-height: 80px;
@@ -488,15 +471,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     <script>
         const vscode = acquireVsCodeApi();
 
-        // Never auto-focus - let users manually click into the form
-        ${false ? `
-        setTimeout(() => {
-            const el = document.getElementById('newNoteText');
-            if (el) {
-                el.focus();
-            }
-        }, 0);
-        ` : '// No auto-focus'}
+        // No auto-focus - let users manually click into the form
 
         function addNote() {
             const text = document.getElementById('newNoteText').value.trim();

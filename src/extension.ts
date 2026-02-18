@@ -9,8 +9,17 @@ import {
 	NotesWorkspaceTracker,
 	NotesExportService,
 } from './notes';
-import { NotesTableProvider, PasswordGeneratorProvider, NoteEditorProvider } from './webviews';
+import {
+	NotesTableProvider,
+	PasswordGeneratorProvider,
+	NoteEditorProvider,
+	PortManagerProvider,
+	SessionTrackerProvider,
+} from './webviews';
 import { ExtensionState } from './extensionState';
+import { SessionService, SessionTracker } from './session';
+import { PortService } from './ports';
+import { ComplexityService, ComplexityDecorations } from './complexity';
 
 /**
  * This method is called when your extension is activated.
@@ -45,16 +54,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Set up cursor tracker to show/hide note editor
 	cursorTracker.setVisibilityCallback(async (show, filePath, lineNumber) => {
 		if (show && filePath !== null && lineNumber !== null) {
-			// Show in secondary sidebar instead of panel (will auto-close if no notes)
-			// Don't steal focus - this is an automatic update based on cursor position
 			await noteEditorProvider.showForLine(filePath, lineNumber, false);
 		} else {
-			// If Note Editor is active, just update the line instead of hiding
-			// This allows users to add notes to lines without existing notes
 			if (noteEditorProvider.isNoteEditorActive() && filePath !== null && lineNumber !== null) {
 				noteEditorProvider.updateLine(filePath, lineNumber);
 			} else {
-				// Hide when moving away from notes and editor is not active
 				await noteEditorProvider.hide();
 			}
 		}
@@ -66,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// Register Notes Table Provider
 	const notesTableProvider = new NotesTableProvider(context, notesService);
-	notesTableProvider.setNoteEditorProvider(noteEditorProvider); // Wire up for navigation
+	notesTableProvider.setNoteEditorProvider(noteEditorProvider);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
 			NotesTableProvider.viewType,
@@ -83,30 +87,66 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		)
 	);
 
-	// Handle storage warnings
+	// ===== Session Tracker =====
+	const sessionService = SessionService.getInstance(context);
+	await sessionService.initialize();
+
+	const sessionProvider = new SessionTrackerProvider(context, sessionService);
 	context.subscriptions.push(
-		notesService.onStorageWarning(async (event) => {
-			if (event.level === 'critical') {
-				const action = await vscode.window.showWarningMessage(
-					event.message,
-					'Migrate Now',
-					'Dismiss'
-				);
-				if (action === 'Migrate Now') {
-					await notesService.migrateToFileStorage();
-					vscode.window.showInformationMessage('Notes migrated to file storage.');
-				}
-			} else {
-				vscode.window.showWarningMessage(event.message);
-			}
-		})
+		vscode.window.registerWebviewViewProvider(
+			SessionTrackerProvider.viewType,
+			sessionProvider
+		)
 	);
+
+	const config = vscode.workspace.getConfiguration('developer-tools');
+	let sessionTracker: SessionTracker | undefined;
+	if (config.get('session.enabled')) {
+		sessionTracker = new SessionTracker(sessionService);
+
+		// Recover any unsaved session from a previous VS Code instance
+		const recovered = await sessionService.recoverSession();
+		if (recovered) {
+			const duration = sessionService.formatDuration(recovered.totalEstimatedTimeMs);
+			const action = await vscode.window.showInformationMessage(
+				`Recovered unsaved session from ${new Date(recovered.startedAt).toLocaleString()} (${duration}, ${recovered.files.length} files).`,
+				'View Session',
+				'Dismiss'
+			);
+			if (action === 'View Session') {
+				vscode.commands.executeCommand('developer-tools.sessionTracker.focus');
+			}
+		}
+
+		// Auto-start session if configured
+		if (config.get('session.autoStart')) {
+			sessionService.startSession();
+		}
+	}
+
+	// ===== Port Manager =====
+	const portService = new PortService();
+	ExtensionState.setPortService(portService);
+
+	const portManagerProvider = new PortManagerProvider(context, portService);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			PortManagerProvider.viewType,
+			portManagerProvider
+		)
+	);
+
+	// ===== Complexity Hints =====
+	const complexityService = new ComplexityService();
+	ExtensionState.setComplexityService(complexityService);
+
+	const complexityDecorations = new ComplexityDecorations(complexityService, context);
 
 	// Register all commands
 	const disposables = registerCommands(context);
 	context.subscriptions.push(...disposables);
 
-	// Add trackers to subscriptions for cleanup
+	// Add all disposables to subscriptions for cleanup
 	context.subscriptions.push(
 		lineTracker,
 		fileTracker,
@@ -115,7 +155,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		exportService,
 		decorations,
 		notesTableProvider,
-		notesService
+		notesService,
+		sessionService,
+		sessionProvider,
+		portService,
+		portManagerProvider,
+		complexityService,
+		complexityDecorations,
+		...(sessionTracker ? [sessionTracker] : []),
 	);
 }
 
@@ -123,7 +170,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  * This method is called when your extension is deactivated.
  */
 export function deactivate(): void {
-	// Cleanup is handled by disposables in context.subscriptions
+	// Persist current session immediately so nothing is lost
+	try {
+		SessionService.getInstance()?.persistCurrentSessionSync();
+	} catch {
+		// Service may not be initialized
+	}
+
 	NotesService.resetInstance();
+	SessionService.resetInstance();
 	ExtensionState.reset();
 }
