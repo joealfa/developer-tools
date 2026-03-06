@@ -1,13 +1,52 @@
 import * as vscode from 'vscode';
-import { generateUuid, generateGuid, generateUuidCompact, generateGuidCompact } from '../generators';
-import { insertTextAtCursor } from '../utils';
 import {
-	NotesService,
-	NotesExportService,
-	CATEGORY_CONFIG,
-} from '../notes';
+	generateUuid,
+	generateGuid,
+	generateUuidCompact,
+	generateGuidCompact,
+} from '../generators';
+import { insertTextAtCursor } from '../utils';
+import { NotesService, NotesExportService, CATEGORY_CONFIG } from '../notes';
 import { ExtensionState } from '../extensionState';
-import { SessionService } from '../session';
+import { SessionService, SessionTracker } from '../session';
+
+/**
+ * Prompt the user to enable a feature if it's not already enabled.
+ * Returns true if the feature is (or becomes) enabled, false if the user declined.
+ */
+async function promptEnableFeature(
+	configKey: string,
+	featureName: string,
+	context: vscode.ExtensionContext,
+	onEnabled?: (context: vscode.ExtensionContext) => void
+): Promise<boolean> {
+	const config = vscode.workspace.getConfiguration('developer-tools');
+	if (config.get<boolean>(configKey, false)) {
+		return true;
+	}
+	const answer = await vscode.window.showInformationMessage(
+		`${featureName} is not enabled. Would you like to enable it?`,
+		'Enable',
+		'Cancel'
+	);
+	if (answer !== 'Enable') {
+		return false;
+	}
+	await config.update(configKey, true, vscode.ConfigurationTarget.Global);
+	onEnabled?.(context);
+	return true;
+}
+
+/**
+ * Ensures a SessionTracker is running (creates one if not already active).
+ */
+function ensureSessionTracker(context: vscode.ExtensionContext): void {
+	if (!ExtensionState.getSessionTracker()) {
+		const tracker = new SessionTracker(SessionService.getInstance());
+		ExtensionState.setSessionTracker(tracker);
+		context.subscriptions.push(tracker);
+	}
+}
 
 /**
  * Command definitions for the extension
@@ -25,31 +64,31 @@ const commands: CommandDefinition[] = [
 		id: 'developer-tools.insertUuid',
 		handler: () => {
 			insertTextAtCursor(generateUuid);
-		}
+		},
 	},
 	{
 		id: 'developer-tools.insertGuid',
 		handler: () => {
 			insertTextAtCursor(generateGuid);
-		}
+		},
 	},
 	{
 		id: 'developer-tools.insertUuidCompact',
 		handler: () => {
 			insertTextAtCursor(generateUuidCompact);
-		}
+		},
 	},
 	{
 		id: 'developer-tools.insertGuidCompact',
 		handler: () => {
 			insertTextAtCursor(generateGuidCompact);
-		}
+		},
 	},
 	{
 		id: 'developer-tools.generatePassword',
 		handler: async () => {
 			await vscode.commands.executeCommand('developer-tools.passwordGenerator.focus');
-		}
+		},
 	},
 	// Notes commands
 	{
@@ -68,7 +107,7 @@ const commands: CommandDefinition[] = [
 			if (noteEditorProvider) {
 				await noteEditorProvider.showForLine(filePath, lineNumber, true);
 			}
-		}
+		},
 	},
 	{
 		id: 'developer-tools.editNote',
@@ -84,7 +123,9 @@ const commands: CommandDefinition[] = [
 			const lineNumber = editor.selection.active.line;
 
 			if (!notesService.hasNotesForLine(filePath, lineNumber)) {
-				vscode.window.showInformationMessage('No notes on this line. Use "Add Note" to create one.');
+				vscode.window.showInformationMessage(
+					'No notes on this line. Use "Add Note" to create one.'
+				);
 				return;
 			}
 
@@ -92,7 +133,7 @@ const commands: CommandDefinition[] = [
 			if (noteEditorProvider) {
 				await noteEditorProvider.showForLine(filePath, lineNumber);
 			}
-		}
+		},
 	},
 	{
 		id: 'developer-tools.deleteNote',
@@ -124,7 +165,7 @@ const commands: CommandDefinition[] = [
 					vscode.window.showInformationMessage('Note deleted.');
 				}
 			} else {
-				const items = notes.map(note => ({
+				const items = notes.map((note) => ({
 					label: note.text.substring(0, 50) + (note.text.length > 50 ? '...' : ''),
 					description: CATEGORY_CONFIG[note.category].label,
 					id: note.id,
@@ -136,17 +177,17 @@ const commands: CommandDefinition[] = [
 				});
 
 				if (selected && selected.length > 0) {
-					await notesService.bulkDelete(selected.map(s => s.id));
+					await notesService.bulkDelete(selected.map((s) => s.id));
 					vscode.window.showInformationMessage(`Deleted ${selected.length} note(s).`);
 				}
 			}
-		}
+		},
 	},
 	{
 		id: 'developer-tools.showNotesPanel',
 		handler: async () => {
 			await vscode.commands.executeCommand('developer-tools.notesTable.focus');
-		}
+		},
 	},
 	{
 		id: 'developer-tools.exportNotes',
@@ -155,7 +196,7 @@ const commands: CommandDefinition[] = [
 			const exportService = new NotesExportService(notesService);
 			await exportService.exportNotes();
 			exportService.dispose();
-		}
+		},
 	},
 	{
 		id: 'developer-tools.importNotes',
@@ -164,69 +205,132 @@ const commands: CommandDefinition[] = [
 			const exportService = new NotesExportService(notesService);
 			await exportService.importNotes();
 			exportService.dispose();
-		}
+		},
 	},
 	// Session Tracker commands
 	{
 		id: 'developer-tools.startSession',
-		handler: () => {
-			const sessionService = SessionService.getInstance();
-			sessionService.startSession();
+		handler: async (context) => {
+			const config = vscode.workspace.getConfiguration('developer-tools');
+			if (!config.get<boolean>('session.enabled', false)) {
+				await config.update('session.enabled', true, vscode.ConfigurationTarget.Global);
+			}
+			ensureSessionTracker(context);
+			SessionService.getInstance().startSession();
+			await vscode.commands.executeCommand('developer-tools.sessionTracker.focus');
 			vscode.window.showInformationMessage('Session tracking started.');
-		}
+		},
 	},
 	{
 		id: 'developer-tools.stopSession',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature(
+				'session.enabled',
+				'Session Tracker',
+				context,
+				ensureSessionTracker
+			);
+			if (!enabled) {
+				return;
+			}
+			ensureSessionTracker(context);
 			const sessionService = SessionService.getInstance();
 			await sessionService.stopSession();
 			vscode.window.showInformationMessage('Session tracking stopped and saved to history.');
-		}
+		},
 	},
 	{
 		id: 'developer-tools.resetSession',
-		handler: () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature(
+				'session.enabled',
+				'Session Tracker',
+				context,
+				ensureSessionTracker
+			);
+			if (!enabled) {
+				return;
+			}
+			ensureSessionTracker(context);
 			const sessionService = SessionService.getInstance();
 			sessionService.resetSession();
 			vscode.window.showInformationMessage('Session reset.');
-		}
+		},
 	},
 	{
 		id: 'developer-tools.showSessionSummary',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature(
+				'session.enabled',
+				'Session Tracker',
+				context,
+				ensureSessionTracker
+			);
+			if (!enabled) {
+				return;
+			}
 			await vscode.commands.executeCommand('developer-tools.sessionTracker.focus');
-		}
+		},
 	},
 	{
 		id: 'developer-tools.showSessionHistory',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature(
+				'session.enabled',
+				'Session Tracker',
+				context,
+				ensureSessionTracker
+			);
+			if (!enabled) {
+				return;
+			}
 			await vscode.commands.executeCommand('developer-tools.sessionTracker.focus');
-		}
+		},
 	},
 	{
 		id: 'developer-tools.deleteSession',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature(
+				'session.enabled',
+				'Session Tracker',
+				context,
+				ensureSessionTracker
+			);
+			if (!enabled) {
+				return;
+			}
 			const sessionService = SessionService.getInstance();
 			const history = await sessionService.getSessionHistory();
 			if (history.length === 0) {
 				vscode.window.showInformationMessage('No session history to delete.');
 				return;
 			}
-			const items = history.map(h => ({
+			const items = history.map((h) => ({
 				label: new Date(h.startedAt).toLocaleString(),
 				description: `${h.totalFiles} files, ${h.status}`,
 				id: h.id,
 			}));
-			const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select session to delete' });
+			const selected = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select session to delete',
+			});
 			if (selected) {
 				await sessionService.deleteHistorySession(selected.id);
 				vscode.window.showInformationMessage('Session deleted.');
 			}
-		}
+		},
 	},
 	{
 		id: 'developer-tools.deleteAllSessions',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature(
+				'session.enabled',
+				'Session Tracker',
+				context,
+				ensureSessionTracker
+			);
+			if (!enabled) {
+				return;
+			}
 			const confirmed = await vscode.window.showWarningMessage(
 				'Delete all session history?',
 				{ modal: true },
@@ -237,34 +341,64 @@ const commands: CommandDefinition[] = [
 				await sessionService.deleteAllHistory();
 				vscode.window.showInformationMessage('All session history deleted.');
 			}
-		}
+		},
+	},
+	{
+		id: 'developer-tools.disableSession',
+		handler: async () => {
+			const config = vscode.workspace.getConfiguration('developer-tools');
+			if (!config.get<boolean>('session.enabled', false)) {
+				vscode.window.showInformationMessage('Session Tracker is already disabled.');
+				return;
+			}
+			const sessionService = SessionService.getInstance();
+			if (sessionService.isActive()) {
+				await sessionService.stopSession();
+			}
+			const tracker = ExtensionState.takeSessionTracker();
+			tracker?.dispose();
+			await config.update('session.enabled', false, vscode.ConfigurationTarget.Global);
+			vscode.window.showInformationMessage('Session Tracker disabled.');
+		},
 	},
 	// Port Manager commands
 	{
 		id: 'developer-tools.refreshPorts',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature('ports.enabled', 'Port Manager', context);
+			if (!enabled) {
+				return;
+			}
 			const portService = ExtensionState.getPortService();
 			if (portService) {
 				await portService.scan();
 			}
-		}
+		},
 	},
 	{
 		id: 'developer-tools.killPort',
-		handler: async () => {
+		handler: async (context) => {
+			const enabled = await promptEnableFeature('ports.enabled', 'Port Manager', context);
+			if (!enabled) {
+				return;
+			}
 			const portService = ExtensionState.getPortService();
-			if (!portService) { return; }
+			if (!portService) {
+				return;
+			}
 			const ports = portService.getPorts();
 			if (ports.length === 0) {
 				vscode.window.showInformationMessage('No listening ports found.');
 				return;
 			}
-			const items = ports.map(p => ({
+			const items = ports.map((p) => ({
 				label: `:${p.port}`,
 				description: `PID ${p.pid} - ${p.processName}`,
 				pid: p.pid,
 			}));
-			const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select port to kill' });
+			const selected = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select port to kill',
+			});
 			if (selected) {
 				const success = await portService.killProcess(selected.pid);
 				if (success) {
@@ -274,32 +408,52 @@ const commands: CommandDefinition[] = [
 					vscode.window.showErrorMessage(`Failed to kill process ${selected.pid}.`);
 				}
 			}
-		}
+		},
 	},
 	{
 		id: 'developer-tools.showPortManager',
 		handler: async () => {
+			const config = vscode.workspace.getConfiguration('developer-tools');
+			if (!config.get<boolean>('ports.enabled', false)) {
+				await config.update('ports.enabled', true, vscode.ConfigurationTarget.Global);
+			}
 			await vscode.commands.executeCommand('developer-tools.portManager.focus');
-		}
+		},
+	},
+	{
+		id: 'developer-tools.disablePorts',
+		handler: async () => {
+			const config = vscode.workspace.getConfiguration('developer-tools');
+			if (!config.get<boolean>('ports.enabled', false)) {
+				vscode.window.showInformationMessage('Port Manager is already disabled.');
+				return;
+			}
+			await config.update('ports.enabled', false, vscode.ConfigurationTarget.Global);
+			vscode.window.showInformationMessage('Port Manager disabled.');
+		},
 	},
 	// Complexity commands
 	{
 		id: 'developer-tools.toggleComplexityHints',
 		handler: async () => {
 			const config = vscode.workspace.getConfiguration('developer-tools');
-			const current = config.get<boolean>('complexity.enabled', true);
+			const current = config.get<boolean>('complexity.enabled', false);
 			await config.update('complexity.enabled', !current, vscode.ConfigurationTarget.Global);
-			vscode.window.showInformationMessage(`Complexity hints ${!current ? 'enabled' : 'disabled'}.`);
-		}
+			vscode.window.showInformationMessage(
+				`Complexity hints ${!current ? 'enabled' : 'disabled'}.`
+			);
+		},
 	},
 	{
 		id: 'developer-tools.analyzeFileComplexity',
 		handler: () => {
 			const complexityService = ExtensionState.getComplexityService();
 			const editor = vscode.window.activeTextEditor;
-			if (!editor || !complexityService) { return; }
+			if (!editor || !complexityService) {
+				return;
+			}
 			complexityService.analyzeDocument(editor.document);
-		}
+		},
 	},
 	{
 		id: 'developer-tools.showComplexityReport',
@@ -315,17 +469,25 @@ const commands: CommandDefinition[] = [
 			const results = complexityService.getComplexity(editor.document.uri);
 
 			if (results.length === 0) {
-				vscode.window.showInformationMessage('No functions found or language not supported.');
+				vscode.window.showInformationMessage(
+					'No functions found or language not supported.'
+				);
 				return;
 			}
 
-			const sorted = [...results].sort((a, b) => b.cyclomaticComplexity - a.cyclomaticComplexity);
+			const sorted = [...results].sort(
+				(a, b) => b.cyclomaticComplexity - a.cyclomaticComplexity
+			);
 			const channel = vscode.window.createOutputChannel('Complexity Report');
 			channel.clear();
-			channel.appendLine(`Complexity Report: ${vscode.workspace.asRelativePath(editor.document.uri)}`);
+			channel.appendLine(
+				`Complexity Report: ${vscode.workspace.asRelativePath(editor.document.uri)}`
+			);
 			channel.appendLine('='.repeat(60));
 			channel.appendLine('');
-			channel.appendLine(`${'Function'.padEnd(35)} ${'CC'.padStart(4)} ${'COG'.padStart(5)} ${'Lines'.padStart(6)}`);
+			channel.appendLine(
+				`${'Function'.padEnd(35)} ${'CC'.padStart(4)} ${'COG'.padStart(5)} ${'Lines'.padStart(6)}`
+			);
 			channel.appendLine('-'.repeat(60));
 
 			for (const r of sorted) {
@@ -335,7 +497,7 @@ const commands: CommandDefinition[] = [
 			}
 
 			channel.show();
-		}
+		},
 	},
 ];
 
@@ -343,7 +505,7 @@ const commands: CommandDefinition[] = [
  * Register all commands and return disposables
  */
 export function registerCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
-	return commands.map(cmd =>
+	return commands.map((cmd) =>
 		vscode.commands.registerCommand(cmd.id, () => cmd.handler(context))
 	);
 }

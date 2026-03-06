@@ -13,214 +13,226 @@ import { Icons } from '../webviews/icons';
  * Manages gutter decorations for notes
  */
 export class NotesDecorations implements vscode.Disposable {
-    private notesService: NotesService;
-    private disposables: vscode.Disposable[] = [];
-    
-    // Decoration types for each category
-    private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
-    
-    // Track which editors have decorations
-    private decoratedEditors: Set<string> = new Set();
+	private notesService: NotesService;
+	private disposables: vscode.Disposable[] = [];
 
-    constructor(notesService: NotesService, context: vscode.ExtensionContext) {
-        this.notesService = notesService;
-        this.createDecorationTypes(context);
-        this.registerListeners();
-        
-        // Initial decoration of visible editors
-        this.decorateAllVisibleEditors();
-    }
+	// Decoration types for each category
+	private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
 
-    /**
-     * Create decoration types for each category and status
-     */
-    private createDecorationTypes(_context: vscode.ExtensionContext): void {
-        // Map svgIconKey to Icons entries
-        const iconKeyMap: Record<string, string> = {
-            notepadText: Icons.notepadText,
-            listTodo: Icons.listTodo,
-            locateFixed: Icons.locateFixed,
-            fileQuestion: Icons.fileQuestion,
-            badgeCheck: Icons.badgeCheck,
-            badgeAlert: Icons.badgeAlert,
-        };
+	// Track which editors have decorations
+	private decoratedEditors: Set<string> = new Set();
 
-        // Create decorations for each category
-        for (const [category, config] of Object.entries(CATEGORY_CONFIG)) {
-            const svgSource = iconKeyMap[config.svgIconKey] || Icons.notepadText;
-            const decorationType = vscode.window.createTextEditorDecorationType({
-                dark: { gutterIconPath: this.createSvgUri(svgSource, '#C5C5C5'), gutterIconSize: '65%' },
-                light: { gutterIconPath: this.createSvgUri(svgSource, '#777777'), gutterIconSize: '65%' },
-            });
-            this.decorationTypes.set(`category-${category}`, decorationType);
-        }
+	constructor(notesService: NotesService, context: vscode.ExtensionContext) {
+		this.notesService = notesService;
+		this.createDecorationTypes(context);
+		this.registerListeners();
 
-        // Create decoration for orphaned notes
-        const orphanedConfig = STATUS_CONFIG.orphaned;
-        const orphanedSvg = iconKeyMap[orphanedConfig.svgIconKey] || Icons.badgeAlert;
-        const orphanedDecoration = vscode.window.createTextEditorDecorationType({
-            dark: { gutterIconPath: this.createSvgUri(orphanedSvg, '#C5C5C5'), gutterIconSize: '65%' },
-            light: { gutterIconPath: this.createSvgUri(orphanedSvg, '#777777'), gutterIconSize: '65%' },
-        });
-        this.decorationTypes.set('status-orphaned', orphanedDecoration);
-    }
+		// Initial decoration of visible editors
+		this.decorateAllVisibleEditors();
+	}
 
-    /**
-     * Create a colored SVG data URI for a gutter icon
-     */
-    private createSvgUri(svgSource: string, color: string): vscode.Uri {
-        const colored = svgSource
-            .replace(/stroke="currentColor"/g, `stroke="${color}"`)
-            .replace(/width="\d+"/, 'width="16"')
-            .replace(/height="\d+"/, 'height="16"');
+	/**
+	 * Create decoration types for each category and status
+	 */
+	private createDecorationTypes(_context: vscode.ExtensionContext): void {
+		// Map svgIconKey to Icons entries
+		const iconKeyMap: Record<string, string> = {
+			notepadText: Icons.notepadText,
+			listTodo: Icons.listTodo,
+			locateFixed: Icons.locateFixed,
+			fileQuestion: Icons.fileQuestion,
+			badgeCheck: Icons.badgeCheck,
+			badgeAlert: Icons.badgeAlert,
+		};
 
-        const encodedSvg = encodeURIComponent(colored);
-        return vscode.Uri.parse(`data:image/svg+xml,${encodedSvg}`);
-    }
+		// Create decorations for each category
+		for (const [category, config] of Object.entries(CATEGORY_CONFIG)) {
+			const svgSource = iconKeyMap[config.svgIconKey] || Icons.notepadText;
+			const decorationType = vscode.window.createTextEditorDecorationType({
+				dark: {
+					gutterIconPath: this.createSvgUri(svgSource, '#C5C5C5'),
+					gutterIconSize: '65%',
+				},
+				light: {
+					gutterIconPath: this.createSvgUri(svgSource, '#777777'),
+					gutterIconSize: '65%',
+				},
+			});
+			this.decorationTypes.set(`category-${category}`, decorationType);
+		}
 
-    /**
-     * Register event listeners
-     */
-    private registerListeners(): void {
-        // Listen to notes changes
-        this.disposables.push(
-            this.notesService.onDidChangeNotes(() => {
-                this.decorateAllVisibleEditors();
-            })
-        );
+		// Create decoration for orphaned notes
+		const orphanedConfig = STATUS_CONFIG.orphaned;
+		const orphanedSvg = iconKeyMap[orphanedConfig.svgIconKey] || Icons.badgeAlert;
+		const orphanedDecoration = vscode.window.createTextEditorDecorationType({
+			dark: {
+				gutterIconPath: this.createSvgUri(orphanedSvg, '#C5C5C5'),
+				gutterIconSize: '65%',
+			},
+			light: {
+				gutterIconPath: this.createSvgUri(orphanedSvg, '#777777'),
+				gutterIconSize: '65%',
+			},
+		});
+		this.decorationTypes.set('status-orphaned', orphanedDecoration);
+	}
 
-        // Listen to visible editor changes
-        this.disposables.push(
-            vscode.window.onDidChangeVisibleTextEditors(() => {
-                this.decorateAllVisibleEditors();
-            })
-        );
+	/**
+	 * Create a colored SVG data URI for a gutter icon
+	 */
+	private createSvgUri(svgSource: string, color: string): vscode.Uri {
+		const colored = svgSource
+			.replace(/stroke="currentColor"/g, `stroke="${color}"`)
+			.replace(/width="\d+"/, 'width="16"')
+			.replace(/height="\d+"/, 'height="16"');
 
-        // Listen to document changes (for immediate visual feedback)
-        this.disposables.push(
-            vscode.workspace.onDidChangeTextDocument((event) => {
-                const editor = vscode.window.visibleTextEditors.find(
-                    e => e.document === event.document
-                );
-                if (editor) {
-                    this.decorateEditor(editor);
-                }
-            })
-        );
-    }
+		const encodedSvg = encodeURIComponent(colored);
+		return vscode.Uri.parse(`data:image/svg+xml,${encodedSvg}`);
+	}
 
-    /**
-     * Decorate all visible text editors
-     */
-    private decorateAllVisibleEditors(): void {
-        for (const editor of vscode.window.visibleTextEditors) {
-            this.decorateEditor(editor);
-        }
-    }
+	/**
+	 * Register event listeners
+	 */
+	private registerListeners(): void {
+		// Listen to notes changes
+		this.disposables.push(
+			this.notesService.onDidChangeNotes(() => {
+				this.decorateAllVisibleEditors();
+			})
+		);
 
-    /**
-     * Decorate a single editor with note indicators
-     */
-    private decorateEditor(editor: vscode.TextEditor): void {
-        // Skip non-file documents
-        if (editor.document.uri.scheme !== 'file') {
-            return;
-        }
+		// Listen to visible editor changes
+		this.disposables.push(
+			vscode.window.onDidChangeVisibleTextEditors(() => {
+				this.decorateAllVisibleEditors();
+			})
+		);
 
-        const filePath = getRelativePath(editor.document.uri);
-        if (!filePath) {
-            return;
-        }
+		// Listen to document changes (for immediate visual feedback)
+		this.disposables.push(
+			vscode.workspace.onDidChangeTextDocument((event) => {
+				const editor = vscode.window.visibleTextEditors.find(
+					(e) => e.document === event.document
+				);
+				if (editor) {
+					this.decorateEditor(editor);
+				}
+			})
+		);
+	}
 
-        // Get notes for this file
-        const notes = this.notesService.getByFile(filePath);
+	/**
+	 * Decorate all visible text editors
+	 */
+	private decorateAllVisibleEditors(): void {
+		for (const editor of vscode.window.visibleTextEditors) {
+			this.decorateEditor(editor);
+		}
+	}
 
-        // Group notes by line and determine which decoration to show
-        // Priority: orphaned > fixme > todo > question > note
-        const lineDecorations = new Map<number, { category: NoteCategory; status: NoteStatus }>();
+	/**
+	 * Decorate a single editor with note indicators
+	 */
+	private decorateEditor(editor: vscode.TextEditor): void {
+		// Skip non-file documents
+		if (editor.document.uri.scheme !== 'file') {
+			return;
+		}
 
-        for (const note of notes) {
-            const existing = lineDecorations.get(note.lineNumber);
-            
-            if (!existing) {
-                lineDecorations.set(note.lineNumber, {
-                    category: note.category,
-                    status: note.status,
-                });
-            } else {
-                // Orphaned status takes priority
-                if (note.status === 'orphaned') {
-                    existing.status = 'orphaned';
-                }
-                
-                // Category priority: fixme > todo > question > note
-                const priority: NoteCategory[] = ['fixme', 'todo', 'question', 'note'];
-                const existingPriority = priority.indexOf(existing.category);
-                const newPriority = priority.indexOf(note.category);
-                
-                if (newPriority < existingPriority) {
-                    existing.category = note.category;
-                }
-            }
-        }
+		const filePath = getRelativePath(editor.document.uri);
+		if (!filePath) {
+			return;
+		}
 
-        // Clear all decorations first
-        for (const decorationType of this.decorationTypes.values()) {
-            editor.setDecorations(decorationType, []);
-        }
+		// Get notes for this file
+		const notes = this.notesService.getByFile(filePath);
 
-        // Group ranges by decoration type
-        const decorationRanges = new Map<string, vscode.Range[]>();
+		// Group notes by line and determine which decoration to show
+		// Priority: orphaned > fixme > todo > question > note
+		const lineDecorations = new Map<number, { category: NoteCategory; status: NoteStatus }>();
 
-        for (const [lineNumber, info] of lineDecorations.entries()) {
-            // Skip if line is beyond document
-            if (lineNumber >= editor.document.lineCount) {
-                continue;
-            }
+		for (const note of notes) {
+			const existing = lineDecorations.get(note.lineNumber);
 
-            const range = new vscode.Range(lineNumber, 0, lineNumber, 0);
-            
-            // Determine which decoration to use
-            let decorationKey: string;
-            if (info.status === 'orphaned') {
-                decorationKey = 'status-orphaned';
-            } else {
-                decorationKey = `category-${info.category}`;
-            }
+			if (!existing) {
+				lineDecorations.set(note.lineNumber, {
+					category: note.category,
+					status: note.status,
+				});
+			} else {
+				// Orphaned status takes priority
+				if (note.status === 'orphaned') {
+					existing.status = 'orphaned';
+				}
 
-            const ranges = decorationRanges.get(decorationKey) ?? [];
-            ranges.push(range);
-            decorationRanges.set(decorationKey, ranges);
-        }
+				// Category priority: fixme > todo > question > note
+				const priority: NoteCategory[] = ['fixme', 'todo', 'question', 'note'];
+				const existingPriority = priority.indexOf(existing.category);
+				const newPriority = priority.indexOf(note.category);
 
-        // Apply decorations
-        for (const [key, ranges] of decorationRanges.entries()) {
-            const decorationType = this.decorationTypes.get(key);
-            if (decorationType) {
-                editor.setDecorations(decorationType, ranges);
-            }
-        }
+				if (newPriority < existingPriority) {
+					existing.category = note.category;
+				}
+			}
+		}
 
-        // Track decorated editor
-        this.decoratedEditors.add(editor.document.uri.toString());
-    }
+		// Clear all decorations first
+		for (const decorationType of this.decorationTypes.values()) {
+			editor.setDecorations(decorationType, []);
+		}
 
-    /**
-     * Dispose of resources
-     */
-    dispose(): void {
-        // Dispose all decoration types
-        for (const decorationType of this.decorationTypes.values()) {
-            decorationType.dispose();
-        }
-        this.decorationTypes.clear();
+		// Group ranges by decoration type
+		const decorationRanges = new Map<string, vscode.Range[]>();
 
-        // Dispose all event listeners
-        for (const disposable of this.disposables) {
-            disposable.dispose();
-        }
-        this.disposables = [];
+		for (const [lineNumber, info] of lineDecorations.entries()) {
+			// Skip if line is beyond document
+			if (lineNumber >= editor.document.lineCount) {
+				continue;
+			}
 
-        this.decoratedEditors.clear();
-    }
+			const range = new vscode.Range(lineNumber, 0, lineNumber, 0);
+
+			// Determine which decoration to use
+			let decorationKey: string;
+			if (info.status === 'orphaned') {
+				decorationKey = 'status-orphaned';
+			} else {
+				decorationKey = `category-${info.category}`;
+			}
+
+			const ranges = decorationRanges.get(decorationKey) ?? [];
+			ranges.push(range);
+			decorationRanges.set(decorationKey, ranges);
+		}
+
+		// Apply decorations
+		for (const [key, ranges] of decorationRanges.entries()) {
+			const decorationType = this.decorationTypes.get(key);
+			if (decorationType) {
+				editor.setDecorations(decorationType, ranges);
+			}
+		}
+
+		// Track decorated editor
+		this.decoratedEditors.add(editor.document.uri.toString());
+	}
+
+	/**
+	 * Dispose of resources
+	 */
+	dispose(): void {
+		// Dispose all decoration types
+		for (const decorationType of this.decorationTypes.values()) {
+			decorationType.dispose();
+		}
+		this.decorationTypes.clear();
+
+		// Dispose all event listeners
+		for (const disposable of this.disposables) {
+			disposable.dispose();
+		}
+		this.disposables = [];
+
+		this.decoratedEditors.clear();
+	}
 }

@@ -5,21 +5,21 @@
 
 // Types
 export {
-    Note,
-    NoteCategory,
-    NoteStatus,
-    SurroundingContext,
-    NotesStorageData,
-    CreateNoteOptions,
-    UpdateNoteOptions,
-    NotesFilter,
-    NotesGroupBy,
-    NotesChangeEvent,
-    STORAGE_VERSION,
-    STORAGE_KEYS,
-    STORAGE_FILES,
-    CATEGORY_CONFIG,
-    STATUS_CONFIG,
+	Note,
+	NoteCategory,
+	NoteStatus,
+	SurroundingContext,
+	NotesStorageData,
+	CreateNoteOptions,
+	UpdateNoteOptions,
+	NotesFilter,
+	NotesGroupBy,
+	NotesChangeEvent,
+	STORAGE_VERSION,
+	STORAGE_KEYS,
+	STORAGE_FILES,
+	CATEGORY_CONFIG,
+	STATUS_CONFIG,
 } from './types';
 
 // Services

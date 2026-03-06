@@ -108,6 +108,8 @@ Track how long you spend coding and which files you edit during a session. Must 
 - Auto-start on workspace open (optional)
 
 **Enable Session Tracker:**
+
+Run **Start Session Tracking** from the Command Palette — it enables the feature automatically. Or enable it manually:
 1. Open Settings (`Ctrl+,` / `Cmd+,`)
 2. Search for `developer-tools.session.enabled`
 3. Enable the toggle — the **Session Tracker** panel appears in the sidebar
@@ -116,13 +118,16 @@ Track how long you spend coding and which files you edit during a session. Must 
 
 | Command | Description |
 |---------|-------------|
-| Start Session Tracking | Begin a new session |
+| Start Session Tracking | Enable the feature (if needed) and begin a new session |
 | Stop Session Tracking | End and save the current session to history |
 | Reset Session | Clear the current session data |
 | Show Session Summary | Focus the Session Tracker sidebar panel |
 | Show Session History | Focus the Session Tracker sidebar panel (history section) |
 | Delete Session | Remove a session from history |
 | Delete All Sessions | Clear all session history |
+| Disable Session Tracking | Stop any active session, dispose the tracker, and disable the feature |
+
+> **Tip:** If Session Tracker is not enabled and you run any session command, you will be prompted to enable it first.
 
 ---
 
@@ -139,6 +144,8 @@ View all listening TCP ports in your system, see the process behind each port, a
 - Toggle auto-refresh on/off
 
 **Enable Port Manager:**
+
+Run **Show Port Manager** from the Command Palette — it enables the feature automatically. Or enable it manually:
 1. Open Settings (`Ctrl+,` / `Cmd+,`)
 2. Search for `developer-tools.ports.enabled`
 3. Enable the toggle — the **Port Manager** panel appears in the sidebar
@@ -147,9 +154,12 @@ View all listening TCP ports in your system, see the process behind each port, a
 
 | Command | Description |
 |---------|-------------|
-| Refresh Port List | Force an immediate scan |
+| Show Port Manager | Enable the feature (if needed) and focus the Port Manager sidebar panel |
+| Refresh Port List | Force an immediate port scan |
 | Kill Process on Port | Pick a port from a list and kill its process |
-| Show Port Manager | Focus the Port Manager sidebar panel |
+| Disable Port Manager | Disable the feature and hide the panel |
+
+> **Tip:** If Port Manager is not enabled and you run a port command, you will be prompted to enable it first.
 
 > **Note:** The Port Manager uses `netstat` (Linux/macOS/Windows) or `lsof` (macOS/Linux) to scan ports. It may require elevated permissions to kill some processes.
 
@@ -256,9 +266,11 @@ The extension ships with two default keybindings for notes. You can add more via
 | Show Session History | `developer-tools.showSessionHistory` |
 | Delete Session | `developer-tools.deleteSession` |
 | Delete All Sessions | `developer-tools.deleteAllSessions` |
+| Disable Session Tracking | `developer-tools.disableSession` |
 | Refresh Port List | `developer-tools.refreshPorts` |
 | Kill Process on Port | `developer-tools.killPort` |
 | Show Port Manager | `developer-tools.showPortManager` |
+| Disable Port Manager | `developer-tools.disablePorts` |
 | Toggle Complexity Hints | `developer-tools.toggleComplexityHints` |
 | Analyze File Complexity | `developer-tools.analyzeFileComplexity` |
 | Show Complexity Report | `developer-tools.showComplexityReport` |

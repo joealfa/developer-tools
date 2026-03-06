@@ -17,7 +17,7 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 		_token: vscode.CancellationToken
 	): void {
 		webviewView.webview.options = {
-			enableScripts: true
+			enableScripts: true,
 		};
 
 		// Generate initial password
@@ -26,18 +26,21 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 
 		// Handle messages from the webview
 		webviewView.webview.onDidReceiveMessage(
-			message => {
+			(message) => {
 				switch (message.command) {
 					case 'generate':
 						const newPassword = generatePassword(message.options as PasswordOptions);
-						webviewView.webview.postMessage({ command: 'updatePassword', password: newPassword });
+						webviewView.webview.postMessage({
+							command: 'updatePassword',
+							password: newPassword,
+						});
 						break;
-						
+
 					case 'copy':
 						vscode.env.clipboard.writeText(message.password);
 						vscode.window.showInformationMessage('Password copied to clipboard!');
 						break;
-						
+
 					case 'insert':
 						const editor = vscode.window.activeTextEditor;
 						if (editor) {
@@ -325,5 +328,4 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
 	}
-
 }

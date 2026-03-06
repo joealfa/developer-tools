@@ -7,7 +7,7 @@
     "url": "https://github.com/joealfa/developer-tools"
   },
   "icon": "images/icon.png",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "engines": {
     "vscode": "^1.109.0"
   },
@@ -117,6 +117,11 @@
         "category": "Developer Tools"
       },
       {
+        "command": "developer-tools.disableSession",
+        "title": "Disable Session Tracking",
+        "category": "Developer Tools"
+      },
+      {
         "command": "developer-tools.refreshPorts",
         "title": "Refresh Port List",
         "category": "Developer Tools"
@@ -129,6 +134,11 @@
       {
         "command": "developer-tools.showPortManager",
         "title": "Show Port Manager",
+        "category": "Developer Tools"
+      },
+      {
+        "command": "developer-tools.disablePorts",
+        "title": "Disable Port Manager",
         "category": "Developer Tools"
       },
       {
@@ -315,13 +325,22 @@
         },
         "developer-tools.complexity.minLevel": {
           "type": "string",
-          "enum": ["low", "moderate", "high", "very-high"],
+          "enum": [
+            "low",
+            "moderate",
+            "high",
+            "very-high"
+          ],
           "default": "moderate",
           "description": "Minimum complexity level to display hints for."
         },
         "developer-tools.complexity.thresholds": {
           "type": "object",
-          "default": { "moderate": 6, "high": 11, "veryHigh": 21 },
+          "default": {
+            "moderate": 6,
+            "high": 11,
+            "veryHigh": 21
+          },
           "description": "Cyclomatic complexity thresholds for each level."
         },
         "developer-tools.complexity.showCognitive": {
@@ -344,10 +363,13 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
     "test": "vscode-test"
   },
   "overrides": {
-    "diff": "^8.0.3"
+    "diff": "^8.0.3",
+    "serialize-javascript": "^7.0.4"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -358,7 +380,9 @@
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.27.0",
     "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
     "npm-run-all": "^4.1.5",
+    "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.3"
   }

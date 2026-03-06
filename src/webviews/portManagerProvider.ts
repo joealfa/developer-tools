@@ -7,89 +7,103 @@ import { PortService, PortInfo } from '../ports';
 import { escapeHtml } from '../utils';
 
 export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.Disposable {
-    public static readonly viewType = 'developer-tools.portManager';
+	public static readonly viewType = 'developer-tools.portManager';
 
-    private view?: vscode.WebviewView;
-    private disposables: vscode.Disposable[] = [];
+	private view?: vscode.WebviewView;
+	private disposables: vscode.Disposable[] = [];
 
-    constructor(
-        private readonly context: vscode.ExtensionContext,
-        private readonly portService: PortService
-    ) {
-        this.disposables.push(
-            portService.onDidChangePorts((ports) => {
-                this.view?.webview.postMessage({ command: 'ports-updated', ports: this.sanitizePorts(ports) });
-            })
-        );
-    }
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly portService: PortService
+	) {
+		this.disposables.push(
+			portService.onDidChangePorts((ports) => {
+				this.view?.webview.postMessage({
+					command: 'ports-updated',
+					ports: this.sanitizePorts(ports),
+				});
+			})
+		);
+	}
 
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        _context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken
-    ): void {
-        this.view = webviewView;
+	public resolveWebviewView(
+		webviewView: vscode.WebviewView,
+		_context: vscode.WebviewViewResolveContext,
+		_token: vscode.CancellationToken
+	): void {
+		this.view = webviewView;
 
-        webviewView.webview.options = {
-            enableScripts: true,
-        };
+		webviewView.webview.options = {
+			enableScripts: true,
+		};
 
-        webviewView.webview.html = this.getHtml();
+		webviewView.webview.html = this.getHtml();
 
-        webviewView.webview.onDidReceiveMessage(
-            async (message) => {
-                switch (message.command) {
-                    case 'refresh':
-                        await this.portService.scan();
-                        break;
-                    case 'kill': {
-                        const success = await this.portService.killProcess(message.pid);
-                        if (success) {
-                            vscode.window.showInformationMessage(`Process ${message.pid} terminated.`);
-                            await this.portService.scan();
-                        } else {
-                            vscode.window.showErrorMessage(`Failed to kill process ${message.pid}. You may need elevated permissions.`);
-                        }
-                        break;
-                    }
-                    case 'toggle-auto-refresh':
-                        if (message.enabled) {
-                            this.portService.startAutoRefresh();
-                        } else {
-                            this.portService.stopAutoRefresh();
-                        }
-                        break;
-                    case 'filter':
-                        const filtered = this.portService.getFilteredPorts(message.text);
-                        webviewView.webview.postMessage({
-                            command: 'ports-updated',
-                            ports: this.sanitizePorts(filtered),
-                        });
-                        break;
-                }
-            },
-            undefined,
-            this.context.subscriptions
-        );
+		webviewView.webview.onDidReceiveMessage(
+			async (message) => {
+				switch (message.command) {
+					case 'refresh':
+						await this.portService.scan();
+						break;
+					case 'kill': {
+						const success = await this.portService.killProcess(message.pid);
+						if (success) {
+							vscode.window.showInformationMessage(
+								`Process ${message.pid} terminated.`
+							);
+							await this.portService.scan();
+						} else {
+							vscode.window.showErrorMessage(
+								`Failed to kill process ${message.pid}. You may need elevated permissions.`
+							);
+						}
+						break;
+					}
+					case 'toggle-auto-refresh':
+						if (message.enabled) {
+							this.portService.startAutoRefresh();
+						} else {
+							this.portService.stopAutoRefresh();
+						}
+						break;
+					case 'filter':
+						const filtered = this.portService.getFilteredPorts(message.text);
+						webviewView.webview.postMessage({
+							command: 'ports-updated',
+							ports: this.sanitizePorts(filtered),
+						});
+						break;
+				}
+			},
+			undefined,
+			this.context.subscriptions
+		);
 
-        // Initial scan
-        this.portService.scan();
-        this.portService.startAutoRefresh();
-    }
+		// Initial scan
+		this.portService.scan();
+		this.portService.startAutoRefresh();
+	}
 
-    private sanitizePorts(ports: PortInfo[]): Array<{ port: number; pid: number; processName: string; command: string; protocol: string; state: string }> {
-        return ports.map(p => ({
-            port: p.port,
-            pid: p.pid,
-            processName: escapeHtml(p.processName),
-            command: escapeHtml(p.command.substring(0, 80)),
-            protocol: p.protocol,
-            state: p.state,
-        }));
-    }
+	private sanitizePorts(ports: PortInfo[]): Array<{
+		port: number;
+		pid: number;
+		processName: string;
+		command: string;
+		protocol: string;
+		state: string;
+	}> {
+		return ports.map((p) => ({
+			port: p.port,
+			pid: p.pid,
+			processName: escapeHtml(p.processName),
+			command: escapeHtml(p.command.substring(0, 80)),
+			protocol: p.protocol,
+			state: p.state,
+		}));
+	}
 
-    private getHtml(): string {
-        return `<!DOCTYPE html>
+	private getHtml(): string {
+		return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -315,11 +329,11 @@ export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.D
     </script>
 </body>
 </html>`;
-    }
+	}
 
-    dispose(): void {
-        for (const d of this.disposables) {
-            d.dispose();
-        }
-    }
+	dispose(): void {
+		for (const d of this.disposables) {
+			d.dispose();
+		}
+	}
 }

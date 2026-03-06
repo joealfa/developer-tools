@@ -25,7 +25,7 @@ export const DEFAULT_PASSWORD_OPTIONS: PasswordOptions = {
 	includeSpecial: true,
 	minNumbers: 1,
 	minSpecial: 1,
-	avoidAmbiguous: false
+	avoidAmbiguous: false,
 };
 
 // Character sets
@@ -36,7 +36,7 @@ const CHARSETS = {
 	lowercaseNoAmbiguous: 'abcdefghjkmnpqrstuvwxyz', // No i, l, o
 	numbers: '0123456789',
 	numbersNoAmbiguous: '23456789', // No 0, 1
-	special: '!@#$%^&*'
+	special: '!@#$%^&*',
 };
 
 /**

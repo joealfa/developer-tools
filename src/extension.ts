@@ -45,22 +45,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Initialize Note Editor Provider for secondary sidebar
 	const noteEditorProvider = new NoteEditorProvider(context, notesService);
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(
-			NoteEditorProvider.viewType,
-			noteEditorProvider
-		)
+		vscode.window.registerWebviewViewProvider(NoteEditorProvider.viewType, noteEditorProvider)
 	);
 
 	// Set up cursor tracker to show/hide note editor
 	cursorTracker.setVisibilityCallback(async (show, filePath, lineNumber) => {
 		if (show && filePath !== null && lineNumber !== null) {
 			await noteEditorProvider.showForLine(filePath, lineNumber, false);
+		} else if (filePath !== null && lineNumber !== null) {
+			// Cursor moved to a line without notes — keep tracking position, don't hide
+			noteEditorProvider.updateLine(filePath, lineNumber);
 		} else {
-			if (noteEditorProvider.isNoteEditorActive() && filePath !== null && lineNumber !== null) {
-				noteEditorProvider.updateLine(filePath, lineNumber);
-			} else {
-				await noteEditorProvider.hide();
-			}
+			// No file context at all — hide the editor
+			await noteEditorProvider.hide();
 		}
 	});
 
@@ -72,10 +69,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const notesTableProvider = new NotesTableProvider(context, notesService);
 	notesTableProvider.setNoteEditorProvider(noteEditorProvider);
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(
-			NotesTableProvider.viewType,
-			notesTableProvider
-		)
+		vscode.window.registerWebviewViewProvider(NotesTableProvider.viewType, notesTableProvider)
 	);
 
 	// Register Password Generator Provider for sidebar
@@ -93,16 +87,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const sessionProvider = new SessionTrackerProvider(context, sessionService);
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(
-			SessionTrackerProvider.viewType,
-			sessionProvider
-		)
+		vscode.window.registerWebviewViewProvider(SessionTrackerProvider.viewType, sessionProvider)
 	);
 
 	const config = vscode.workspace.getConfiguration('developer-tools');
 	let sessionTracker: SessionTracker | undefined;
 	if (config.get('session.enabled')) {
 		sessionTracker = new SessionTracker(sessionService);
+		ExtensionState.setSessionTracker(sessionTracker);
 
 		// Recover any unsaved session from a previous VS Code instance
 		const recovered = await sessionService.recoverSession();
@@ -130,10 +122,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const portManagerProvider = new PortManagerProvider(context, portService);
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(
-			PortManagerProvider.viewType,
-			portManagerProvider
-		)
+		vscode.window.registerWebviewViewProvider(PortManagerProvider.viewType, portManagerProvider)
 	);
 
 	// ===== Complexity Hints =====
@@ -162,7 +151,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		portManagerProvider,
 		complexityService,
 		complexityDecorations,
-		...(sessionTracker ? [sessionTracker] : []),
+		...(sessionTracker ? [sessionTracker] : [])
 	);
 }
 

@@ -4,6 +4,19 @@ All notable changes to the "developer-tools" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.5] - 2026-03-07
+
+### Added
+- **Auto-enable Session Tracker from commands** — Running "Start Session Tracking" now automatically enables the feature (`developer-tools.session.enabled → true`) and starts the `SessionTracker` listener without requiring a manual settings change or restart
+- **Auto-enable Port Manager from commands** — Running "Show Port Manager" now automatically enables the feature (`developer-tools.ports.enabled → true`) and reveals the panel
+- **Disable Session Tracking command** — New "Disable Session Tracking" command stops any active session, disposes the tracker, and sets `session.enabled` to `false`
+- **Disable Port Manager command** — New "Disable Port Manager" command sets `ports.enabled` to `false` and hides the panel
+- **Enable prompts for gated commands** — Session and Port Manager commands that require the feature to be active (stop, reset, refresh, kill, delete history, etc.) now show an actionable notification — "X is not enabled. Would you like to enable it?" — instead of silently doing nothing
+- **Prettier integration** — Added Prettier for consistent code formatting with `npm run format` and `npm run format:check` scripts; `eslint-config-prettier` added to suppress conflicting ESLint rules
+
+### Changed
+- **Complexity hints off by default** — `developer-tools.complexity.enabled` now defaults to `false`; hints activate immediately when the setting is toggled to `true` without requiring a restart
+
 ## [1.0.4] - 2026-02-18
 
 ### Added
