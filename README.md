@@ -15,7 +15,9 @@ A productivity toolkit for Visual Studio Code developers. All features live in t
 
 ### UUID / GUID Generation
 
-Insert UUIDs and GUIDs at the cursor position from the Command Palette. Supports all four format variants.
+Insert UUIDs and GUIDs at the cursor position from the Command Palette.
+
+Direct insert commands support four formats; the `Generate & Insert UUID/GUID or Password` flow also includes brace-wrapped UUID/GUID variants.
 
 | Command | Output example |
 |---------|---------------|
@@ -23,6 +25,7 @@ Insert UUIDs and GUIDs at the cursor position from the Command Palette. Supports
 | **Insert GUID (Uppercase)** | `550E8400-E29B-41D4-A716-446655440000` |
 | **Insert UUID (Compact)** | `550e8400e29b41d4a716446655440000` |
 | **Insert GUID (Compact, Uppercase)** | `550E8400E29B41D4A716446655440000` |
+| **Generate & Insert UUID/GUID or Password** | Interactive picker (`Ctrl+Alt+G` / `Cmd+Alt+G`) |
 
 **Multiple cursors** — each cursor gets a unique identifier.
 **Selection replacement** — selecting text across multiple lines replaces each line with one UUID/GUID.
@@ -56,6 +59,7 @@ Attach persistent notes to specific lines in your code. Notes are stored in `.vs
 **Features:**
 - **Four categories:** Note, ToDo, FixMe, Question — each with a distinct gutter icon
 - **Inline Note Editor** — sidebar panel that shows notes for the current cursor line; auto-updates as you move the cursor
+- **Works across trackable editors** — notes context tracks workspace files, files outside the workspace, untitled files, and user settings documents (`vscode-userdata`)
 - **Notes Table** — searchable, filterable list of all notes across the workspace with a preview of each note's text
 - **Line tracking** — notes shift automatically when lines are inserted or deleted above them
 - **Content-hash detection** — notes are orphaned when their anchored line changes significantly, preventing stale references
@@ -66,6 +70,7 @@ Attach persistent notes to specific lines in your code. Notes are stored in `.vs
 - **Grouping** — group the Notes Table by file, category, or status
 - **Bulk operations** — multi-select notes for bulk delete or category change
 - **Import/Export** — export notes to JSON and import them back
+- **Add Another Note accordion** — when notes already exist on a line, the add form is collapsible and collapsed by default
 
 **Commands:**
 
@@ -221,7 +226,7 @@ async function processData(items) {   ⊘ CC:14 COG:18
 
 ## Custom Keyboard Shortcuts
 
-The extension ships with two default keybindings for notes. You can add more via VS Code's keyboard shortcuts.
+The extension ships with default keybindings for `Generate & Insert` and notes. You can add more via VS Code's keyboard shortcuts.
 
 **Method 1: Keyboard Shortcuts UI**
 1. Open Keyboard Shortcuts: `Ctrl+K Ctrl+S` (Windows/Linux) or `Cmd+K Cmd+S` (macOS)
@@ -235,6 +240,7 @@ The extension ships with two default keybindings for notes. You can add more via
 
 ```json
 [
+  { "key": "ctrl+alt+g",       "command": "developer-tools.generateAndInsert" },
   { "key": "ctrl+shift+u",     "command": "developer-tools.insertUuid" },
   { "key": "ctrl+shift+alt+u", "command": "developer-tools.insertUuidCompact" },
   { "key": "ctrl+shift+g",     "command": "developer-tools.insertGuid" },
@@ -248,6 +254,7 @@ The extension ships with two default keybindings for notes. You can add more via
 
 | Command | ID |
 |---------|----|
+| Generate & Insert UUID/GUID or Password | `developer-tools.generateAndInsert` |
 | Insert UUID | `developer-tools.insertUuid` |
 | Insert UUID (Compact) | `developer-tools.insertUuidCompact` |
 | Insert GUID (Uppercase) | `developer-tools.insertGuid` |

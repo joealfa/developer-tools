@@ -4,6 +4,25 @@ All notable changes to the "developer-tools" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.6] - 2026-03-07
+
+### Added
+- **Generate & Insert command** - Added `developer-tools.generateAndInsert` with default shortcut `Ctrl+Alt+G` / `Cmd+Alt+G` to generate UUID/GUID or password from one flow
+- **UUID/GUID brace variants in generator flow** - The generate flow now supports brace-wrapped UUID/GUID output in addition to standard and compact formats
+
+### Changed
+- **Note Editor long-path UX** - Current location now prioritizes filename + line and shows a compact path with full path in tooltip for narrow sidebars
+- **Add Another Note accordion** - When notes already exist on a line, the add form is now collapsible and collapsed by default
+
+### Fixed
+- **Non-workspace tracking support** - Note tracking now supports `vscode-userdata` documents (for example user `settings.json`) and untitled files consistently
+- **No-notes state regression** - Empty state icon view was restored when there are no notes
+- **Tracker visibility regression** - File/line tracker now remains visible in the empty state when context exists
+- **Focus-transition empty panel glitch** - Improved context recovery from visible editors when webview focus temporarily clears `activeTextEditor`
+
+### Documentation
+- Updated `README.md` and `vsc-extension-quickstart.md` to reflect the new command, note-tracking behavior, and current command count
+
 ## [1.0.5] - 2026-03-07
 
 ### Added

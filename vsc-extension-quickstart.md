@@ -9,6 +9,7 @@ A productivity toolkit for developers: UUID/GUID generation, secure password gen
 - **Insert GUID (Uppercase)** — uppercase GUID with hyphens
 - **Insert UUID (Compact)** — UUID without hyphens
 - **Insert GUID (Compact, Uppercase)** — uppercase GUID without hyphens
+- **Generate & Insert UUID/GUID or Password** — interactive picker with default shortcut `Ctrl+Alt+G` / `Cmd+Alt+G`
 - Multiple cursors — each cursor receives a unique UUID/GUID
 - Selection replacement — replaces each selected line with one UUID/GUID
 
@@ -24,6 +25,7 @@ A productivity toolkit for developers: UUID/GUID generation, secure password gen
 - Attach persistent notes to specific lines in any file
 - Four categories: Note, ToDo, FixMe, Question — each with a distinct gutter SVG icon
 - Inline Note Editor sidebar: auto-follows the cursor, shows notes for the current line
+- Tracks workspace files, external files, untitled documents, and user settings docs (`vscode-userdata`)
 - Notes Table sidebar: searchable, filterable, grouped list of all workspace notes with text preview
 - Line tracking: notes shift when lines are inserted/deleted
 - Content-hash detection: notes are orphaned when their anchored line content changes
@@ -33,6 +35,7 @@ A productivity toolkit for developers: UUID/GUID generation, secure password gen
 - Bulk operations: multi-select for delete or category change
 - Import/Export to `.vscode/notes/notes.json`
 - Auto-export and `.gitignore` integration (configurable)
+- Add Another Note form is collapsible and collapsed by default when notes exist
 
 ### Session Tracker *(disabled by default)*
 - Track coding time per workspace session
@@ -66,7 +69,7 @@ src/
 ├── extension.ts              # Activation, wires all modules together
 ├── extensionState.ts         # Shared singleton state (cursor tracker, providers, services)
 ├── commands/
-│   └── index.ts              # All 24 command handlers
+│   └── index.ts              # All 27 command handlers
 ├── generators/
 │   ├── index.ts
 │   ├── uuid.ts               # UUID/GUID generation (crypto.randomUUID)
@@ -108,7 +111,7 @@ src/
 │   ├── portManagerProvider.ts    # Port Manager sidebar
 │   └── index.ts
 ├── utils/
-│   ├── editor.ts             # insertTextAtCursor, insertTextIntoEditor, escapeHtml, getRelativePath
+│   ├── editor.ts             # insertTextAtCursor, insertTextIntoEditor, escapeHtml, getRelativePath, getTrackableDocumentPath
 │   └── index.ts
 └── test/
     └── extension.test.ts     # ~38 tests covering UUID, password, notes, commands, config
@@ -145,6 +148,7 @@ src/
 Press `F5` to open a new VS Code window with the extension loaded.
 
 Try these commands via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
+- `Developer Tools: Generate & Insert UUID/GUID or Password`
 - `Developer Tools: Insert UUID`
 - `Developer Tools: Generate Password`
 - `Developer Tools: Add Note to Line`
