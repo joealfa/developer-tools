@@ -21,6 +21,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "developer-tools.generateAndInsert",
+        "title": "Generate & Insert UUID/GUID or Password",
+        "category": "Developer Tools"
+      },
+      {
         "command": "developer-tools.insertUuid",
         "title": "Insert UUID",
         "category": "Developer Tools"
@@ -261,6 +266,11 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "developer-tools.generateAndInsert",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g"
+      },
       {
         "command": "developer-tools.addNote",
         "key": "ctrl+alt+n",

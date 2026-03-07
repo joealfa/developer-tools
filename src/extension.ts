@@ -56,8 +56,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			// Cursor moved to a line without notes — keep tracking position, don't hide
 			noteEditorProvider.updateLine(filePath, lineNumber);
 		} else {
-			// No file context at all — hide the editor
-			await noteEditorProvider.hide();
+			// Some focus transitions can temporarily report no context.
+			// Only hide when we also fail to recover a visible trackable editor.
+			if (!noteEditorProvider.restoreFromVisibleEditor()) {
+				await noteEditorProvider.hide();
+			}
 		}
 	});
 

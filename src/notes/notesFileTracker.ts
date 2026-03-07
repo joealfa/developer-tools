@@ -13,6 +13,8 @@ import { getRelativePath } from '../utils';
 export class NotesFileTracker implements vscode.Disposable {
 	private notesService: NotesService;
 	private disposables: vscode.Disposable[] = [];
+	// Tracks the fileName of an untitled document about to be saved for the first time
+	private pendingUntitledPath: string | null = null;
 
 	constructor(notesService: NotesService) {
 		this.notesService = notesService;
@@ -25,6 +27,34 @@ export class NotesFileTracker implements vscode.Disposable {
 
 		// Listen to file deletions
 		this.disposables.push(vscode.workspace.onDidDeleteFiles(this.handleFileDelete.bind(this)));
+
+		// Track untitled → file migration when an untitled document is saved for the first time
+		this.disposables.push(
+			vscode.workspace.onWillSaveTextDocument((event) => {
+				if (event.document.uri.scheme === 'untitled') {
+					this.pendingUntitledPath = event.document.fileName;
+				} else {
+					// A regular file is being saved — clear any stale pending untitled path
+					// (handles the case where a Save As was cancelled then a normal save follows)
+					this.pendingUntitledPath = null;
+				}
+			})
+		);
+
+		this.disposables.push(
+			vscode.workspace.onDidSaveTextDocument(async (document) => {
+				if (document.uri.scheme === 'file' && this.pendingUntitledPath !== null) {
+					const untitledPath = this.pendingUntitledPath;
+					this.pendingUntitledPath = null;
+
+					const notes = this.notesService.getByFile(untitledPath);
+					if (notes.length > 0) {
+						const newPath = vscode.workspace.asRelativePath(document.uri, false);
+						await this.notesService.updateFilePath(untitledPath, newPath);
+					}
+				}
+			})
+		);
 	}
 
 	/**

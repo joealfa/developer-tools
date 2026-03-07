@@ -1,1 +1,7 @@
-export { insertTextAtCursor, insertTextIntoEditor, escapeHtml, getRelativePath } from './editor';
+export {
+	insertTextAtCursor,
+	insertTextIntoEditor,
+	escapeHtml,
+	getRelativePath,
+	getTrackableDocumentPath,
+} from './editor';

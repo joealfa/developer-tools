@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotesService, Note, NoteCategory, CATEGORY_CONFIG } from '../notes';
-import { escapeHtml } from '../utils';
+import { escapeHtml, getTrackableDocumentPath } from '../utils';
 import { Icons } from './icons';
 
 /**
@@ -38,15 +38,21 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 
 		this.disposables.push(
 			vscode.window.onDidChangeActiveTextEditor((editor) => {
-				if (editor && editor.document.uri.scheme === 'file') {
+				if (editor) {
+					const filePath = NoteEditorProvider.getEditorPath(editor);
+					if (filePath === null) {
+						return;
+					}
 					if (this.showAddForm) {
 						this.showAddForm = false;
 					}
 					this.isFileFocused = true;
+					this.currentFilePath = filePath;
+					this.currentLineNumber = editor.selection.active.line;
 					this.updateContent();
 				} else if (editor === undefined) {
 					const hasVisibleFile = vscode.window.visibleTextEditors.some(
-						(e) => e.document.uri.scheme === 'file'
+						(e) => NoteEditorProvider.getEditorPath(e) !== null
 					);
 					if (!hasVisibleFile && this.isFileFocused) {
 						this.isFileFocused = false;
@@ -88,8 +94,34 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 	public updateLine(filePath: string, lineNumber: number): void {
 		this.currentFilePath = filePath;
 		this.currentLineNumber = lineNumber;
+		this.isActive = true;
+		this.isFileFocused = true;
 		this.showAddForm = false; // Don't show form on automatic updates
 		this.updateContent();
+	}
+
+	/**
+	 * Attempt to restore context from a currently visible trackable editor.
+	 * Returns true if context was restored and rendered.
+	 */
+	public restoreFromVisibleEditor(): boolean {
+		const editor = this.getCurrentTrackableEditor();
+		if (!editor) {
+			return false;
+		}
+
+		const filePath = NoteEditorProvider.getEditorPath(editor);
+		if (!filePath) {
+			return false;
+		}
+
+		this.currentFilePath = filePath;
+		this.currentLineNumber = editor.selection.active.line;
+		this.isActive = true;
+		this.isFileFocused = true;
+		this.showAddForm = false;
+		this.updateContent();
+		return true;
 	}
 
 	/**
@@ -236,7 +268,10 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 	/**
 	 * Get HTML content for empty state
 	 */
-	private getEmptyStateHtml(): string {
+	private getEmptyStateHtml(
+		location?: { fullPath: string; fileName: string; compactPath: string },
+		lineNumber?: number
+	): string {
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -246,17 +281,51 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     <style>
         body {
             font-family: var(--vscode-font-family);
-            padding: 20px;
+			padding: 12px;
             color: var(--vscode-foreground);
             background-color: var(--vscode-sideBar-background);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 200px;
+		}
+		.location-info {
+			padding: 8px 12px;
+			background-color: var(--vscode-editor-background);
+			border-radius: 4px;
+			margin-bottom: 12px;
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+		}
+		.location-file {
+			font-weight: bold;
+			color: var(--vscode-foreground);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			min-width: 0;
+		}
+		.location-top-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 8px;
+		}
+		.location-line {
+			white-space: nowrap;
+			flex-shrink: 0;
+		}
+		.location-path {
+			margin-top: 2px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: 10px;
         }
         .empty-state {
             text-align: center;
             color: var(--vscode-descriptionForeground);
+			min-height: 240px;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
         }
         .empty-state svg {
             width: 48px;
@@ -267,6 +336,17 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     </style>
 </head>
 <body>
+	${
+		location && typeof lineNumber === 'number'
+			? `<div class="location-info" title="${escapeHtml(location.fullPath)}">
+		<div class="location-top-row">
+			<div class="location-file">${escapeHtml(location.fileName)}</div>
+			<div class="location-line">Line ${lineNumber + 1}</div>
+		</div>
+		<div class="location-path">${escapeHtml(location.compactPath)}</div>
+	</div>`
+			: ''
+	}
     <div class="empty-state">
         ${Icons.notepadText}
         <p>Click on a line to add or edit notes</p>
@@ -281,6 +361,14 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 	private getHtml(notes: Note[]): string {
 		if (!this.currentFilePath || this.currentLineNumber === null) {
 			return this.getEmptyStateHtml();
+		}
+
+		const locationInfo = this.getLocationInfo(this.currentFilePath);
+
+		// Preserve the previous UX: when there are no notes and the add form is not
+		// explicitly opened, show the empty-state illustration instead of a blank panel.
+		if (notes.length === 0 && !this.showAddForm) {
+			return this.getEmptyStateHtml(locationInfo, this.currentLineNumber);
 		}
 
 		const categoryOptions = Object.entries(CATEGORY_CONFIG)
@@ -320,6 +408,20 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 						.join('')
 				: '';
 
+		const addNoteFormHtml = `
+		<div class="form-group">
+			<label for="newNoteText">Note</label>
+			<textarea id="newNoteText" class="note-text" placeholder="Enter your note..."></textarea>
+		</div>
+		<div class="form-group">
+			<label for="newNoteCategory">Category</label>
+			<select id="newNoteCategory" class="category-select">
+				${categoryOptions}
+			</select>
+		</div>
+		<button class="btn" onclick="addNote()">Add Note</button>
+	`;
+
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -347,6 +449,27 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
         .location-file {
             font-weight: bold;
             color: var(--vscode-foreground);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			min-width: 0;
+		}
+		.location-top-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 8px;
+		}
+		.location-line {
+			white-space: nowrap;
+			flex-shrink: 0;
+		}
+		.location-path {
+			margin-top: 2px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: 10px;
         }
         .note-card {
             background-color: var(--vscode-input-background);
@@ -410,6 +533,39 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
             border-radius: 4px;
             padding: 12px;
         }
+		.add-note-accordion {
+			border: 1px solid var(--vscode-input-border);
+			border-radius: 4px;
+			background-color: var(--vscode-input-background);
+			margin-top: 12px;
+			overflow: hidden;
+		}
+		.add-note-summary {
+			list-style: none;
+			cursor: pointer;
+			padding: 12px;
+			font-weight: bold;
+			font-size: 12px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			user-select: none;
+		}
+		.add-note-summary::-webkit-details-marker {
+			display: none;
+		}
+		.add-note-summary::after {
+			content: '▸';
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			transition: transform 120ms ease;
+		}
+		.add-note-accordion[open] .add-note-summary::after {
+			transform: rotate(90deg);
+		}
+		.add-note-accordion-body {
+			padding: 0 12px 12px 12px;
+		}
         .section-title {
             font-weight: bold;
             margin-bottom: 8px;
@@ -459,9 +615,12 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 <body>
     ${
 		this.isFileFocused
-			? `<div class="location-info">
-        <div class="location-file">${escapeHtml(this.currentFilePath)}</div>
-        <div>Line ${this.currentLineNumber + 1}</div>
+				? `<div class="location-info" title="${escapeHtml(locationInfo.fullPath)}">
+			<div class="location-top-row">
+				<div class="location-file">${escapeHtml(locationInfo.fileName)}</div>
+				<div class="location-line">Line ${this.currentLineNumber + 1}</div>
+			</div>
+			<div class="location-path">${escapeHtml(locationInfo.compactPath)}</div>
     </div>`
 			: ''
 	}
@@ -471,20 +630,19 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
     ${
 		notes.length > 0 || this.showAddForm
 			? `
-    <div class="add-note-section">
-        <div class="section-title">${notes.length > 0 ? 'Add Another Note' : 'Add Note'}</div>
-        <div class="form-group">
-            <label for="newNoteText">Note</label>
-            <textarea id="newNoteText" class="note-text" placeholder="Enter your note..."></textarea>
-        </div>
-        <div class="form-group">
-            <label for="newNoteCategory">Category</label>
-            <select id="newNoteCategory" class="category-select">
-                ${categoryOptions}
-            </select>
-        </div>
-        <button class="btn" onclick="addNote()">Add Note</button>
-    </div>
+	${
+		notes.length > 0
+			? `<details class="add-note-accordion">
+		<summary class="add-note-summary">Add Another Note</summary>
+		<div class="add-note-accordion-body">
+			${addNoteFormHtml}
+		</div>
+	</details>`
+			: `<div class="add-note-section">
+		<div class="section-title">Add Note</div>
+		${addNoteFormHtml}
+	</div>`
+	}
     `
 			: ''
 	}
@@ -570,21 +728,80 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
+	 * Get the file path for an editor, supporting both workspace files,
+	 * files outside the workspace, and untitled documents.
+	 */
+	private static getEditorPath(editor: vscode.TextEditor): string | null {
+		return getTrackableDocumentPath(editor.document);
+	}
+
+	/**
+	 * Build user-friendly location text that fits in narrow sidebar layouts.
+	 */
+	private getLocationInfo(filePath: string): {
+		fullPath: string;
+		fileName: string;
+		compactPath: string;
+	} {
+		const normalizedPath = filePath.replace(/\\/g, '/');
+		const segments = normalizedPath.split('/').filter((segment) => segment.length > 0);
+		const fileName = segments.length > 0 ? segments[segments.length - 1] : filePath;
+
+		if (segments.length <= 4) {
+			return {
+				fullPath: filePath,
+				fileName,
+				compactPath: filePath,
+			};
+		}
+
+		const firstTwo = segments.slice(0, 2).join('/');
+		const lastTwo = segments.slice(-2).join('/');
+		return {
+			fullPath: filePath,
+			fileName,
+			compactPath: `${firstTwo}/.../${lastTwo}`,
+		};
+	}
+
+	/**
 	 * Update from current editor without any focus commands
 	 */
 	private updateFromCurrentEditor(): void {
-		const editor = vscode.window.activeTextEditor;
-		if (!editor || editor.document.uri.scheme !== 'file') {
+		const editor = this.getCurrentTrackableEditor();
+		if (!editor) {
 			return;
 		}
 
-		const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
+		const filePath = NoteEditorProvider.getEditorPath(editor);
+		if (!filePath) {
+			return;
+		}
+
 		const lineNumber = editor.selection.active.line;
 
 		this.currentFilePath = filePath;
 		this.currentLineNumber = lineNumber;
 		this.isFileFocused = true;
 		this.updateContent();
+	}
+
+	/**
+	 * Resolve the best editor to use for Note Editor context.
+	 * When the Note Editor webview is focused, `activeTextEditor` can be undefined,
+	 * so fall back to any visible trackable editor.
+	 */
+	private getCurrentTrackableEditor(): vscode.TextEditor | undefined {
+		if (vscode.window.activeTextEditor) {
+			const activePath = NoteEditorProvider.getEditorPath(vscode.window.activeTextEditor);
+			if (activePath !== null) {
+				return vscode.window.activeTextEditor;
+			}
+		}
+
+		return vscode.window.visibleTextEditors.find(
+			(editor) => NoteEditorProvider.getEditorPath(editor) !== null
+		);
 	}
 
 	/**
@@ -599,12 +816,12 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 		this.cursorTrackingDisposable = vscode.window.onDidChangeTextEditorSelection((event) => {
 			const editor = event.textEditor;
 
-			// Only track file editors
-			if (editor.document.uri.scheme !== 'file') {
+			// Only track file and untitled editors
+			const filePath = NoteEditorProvider.getEditorPath(editor);
+			if (!filePath) {
 				return;
 			}
 
-			const filePath = vscode.workspace.asRelativePath(editor.document.uri, false);
 			const lineNumber = event.selections[0].active.line;
 
 			// User interacted with the text editor, so hide the add form

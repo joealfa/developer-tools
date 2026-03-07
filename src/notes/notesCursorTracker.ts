@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotesService } from './notesService';
-import { getRelativePath } from '../utils';
+import { getTrackableDocumentPath } from '../utils';
 
 /**
  * Callback type for panel visibility changes
@@ -64,7 +64,16 @@ export class NotesCursorTracker implements vscode.Disposable {
 				this.checkCurrentPosition();
 			})
 		);
+	}
 
+	/**
+	 * Resolve the tracking path for a document.
+	 * Returns the workspace-relative path for workspace files,
+	 * the absolute path for files outside the workspace,
+	 * the fileName for untitled documents, and null for other schemes.
+	 */
+	private static getDocumentPath(document: vscode.TextDocument): string | null {
+		return getTrackableDocumentPath(document);
 	}
 
 	/**
@@ -73,8 +82,8 @@ export class NotesCursorTracker implements vscode.Disposable {
 	private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
 		const editor = event.textEditor;
 
-		// Skip non-file documents
-		if (editor.document.uri.scheme !== 'file') {
+		// Skip documents we can't track (output panels, webviews, etc.)
+		if (NotesCursorTracker.getDocumentPath(editor.document) === null) {
 			return;
 		}
 
@@ -87,7 +96,7 @@ export class NotesCursorTracker implements vscode.Disposable {
 		}
 
 		this.debounceTimer = setTimeout(() => {
-			this.checkLineForNotes(editor.document.uri, lineNumber);
+			this.checkLineForNotes(editor.document, lineNumber);
 		}, 100);
 	}
 
@@ -107,31 +116,39 @@ export class NotesCursorTracker implements vscode.Disposable {
 				clearTimeout(this.debounceTimer);
 			}
 			this.debounceTimer = setTimeout(() => {
-				// Double-check we still have no text editor
+				// Double-check we still have no active text editor AND no visible
+				// trackable editors. This guards against the case where the user
+				// focuses the Note Editor sidebar while a file is still visible
+				// in the background (e.g. settings.json outside the workspace).
 				if (!vscode.window.activeTextEditor) {
-					this.updateVisibility(false, null, null);
+					const hasVisibleTrackable = vscode.window.visibleTextEditors.some(
+						(e) => NotesCursorTracker.getDocumentPath(e.document) !== null
+					);
+					if (!hasVisibleTrackable) {
+						this.updateVisibility(false, null, null);
+					}
 				}
 			}, 200);
 			return;
 		}
 
-		// Skip non-file documents (like output, webviews, etc.)
-		if (editor.document.uri.scheme !== 'file') {
-			// Don't hide just because we switched to a non-file
+		// Skip documents we can't track (output panels, webviews, etc.)
+		if (NotesCursorTracker.getDocumentPath(editor.document) === null) {
+			// Don't hide just because we switched to a non-trackable editor
 			// The panel might still be relevant
 			return;
 		}
 
 		// Check the current line
 		const lineNumber = editor.selection.active.line;
-		this.checkLineForNotes(editor.document.uri, lineNumber);
+		this.checkLineForNotes(editor.document, lineNumber);
 	}
 
 	/**
 	 * Check if current line has notes and update visibility
 	 */
-	private checkLineForNotes(uri: vscode.Uri, lineNumber: number): void {
-		const filePath = getRelativePath(uri);
+	private checkLineForNotes(document: vscode.TextDocument, lineNumber: number): void {
+		const filePath = NotesCursorTracker.getDocumentPath(document);
 		if (!filePath) {
 			this.updateVisibility(false, null, null);
 			return;
@@ -146,12 +163,12 @@ export class NotesCursorTracker implements vscode.Disposable {
 	 */
 	private checkCurrentPosition(): void {
 		const editor = vscode.window.activeTextEditor;
-		if (!editor || editor.document.uri.scheme !== 'file') {
+		if (!editor || NotesCursorTracker.getDocumentPath(editor.document) === null) {
 			return;
 		}
 
 		const lineNumber = editor.selection.active.line;
-		this.checkLineForNotes(editor.document.uri, lineNumber);
+		this.checkLineForNotes(editor.document, lineNumber);
 	}
 
 	/**
@@ -195,11 +212,11 @@ export class NotesCursorTracker implements vscode.Disposable {
 	 */
 	forceShow(): void {
 		const editor = vscode.window.activeTextEditor;
-		if (!editor || editor.document.uri.scheme !== 'file') {
+		if (!editor) {
 			return;
 		}
 
-		const filePath = getRelativePath(editor.document.uri);
+		const filePath = NotesCursorTracker.getDocumentPath(editor.document);
 		const lineNumber = editor.selection.active.line;
 
 		if (filePath !== null) {

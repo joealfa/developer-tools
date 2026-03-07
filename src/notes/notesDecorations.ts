@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { NotesService } from './notesService';
 import { NoteCategory, NoteStatus, CATEGORY_CONFIG, STATUS_CONFIG } from './types';
-import { getRelativePath } from '../utils';
+import { getTrackableDocumentPath } from '../utils';
 import { Icons } from '../webviews/icons';
 
 /**
@@ -134,12 +134,7 @@ export class NotesDecorations implements vscode.Disposable {
 	 * Decorate a single editor with note indicators
 	 */
 	private decorateEditor(editor: vscode.TextEditor): void {
-		// Skip non-file documents
-		if (editor.document.uri.scheme !== 'file') {
-			return;
-		}
-
-		const filePath = getRelativePath(editor.document.uri);
+		const filePath = getTrackableDocumentPath(editor.document);
 		if (!filePath) {
 			return;
 		}

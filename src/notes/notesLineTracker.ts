@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import { NotesService } from './notesService';
-import { getRelativePath } from '../utils';
+import { getTrackableDocumentPath } from '../utils';
 
 /**
  * Tracks document changes and updates note line numbers accordingly
@@ -32,13 +32,8 @@ export class NotesLineTracker implements vscode.Disposable {
 	private handleDocumentChange(event: vscode.TextDocumentChangeEvent): void {
 		const document = event.document;
 
-		// Skip non-file documents
-		if (document.uri.scheme !== 'file') {
-			return;
-		}
-
-		// Get relative file path
-		const filePath = getRelativePath(document.uri);
+		// Resolve only documents that support notes tracking.
+		const filePath = getTrackableDocumentPath(document);
 		if (!filePath) {
 			return;
 		}

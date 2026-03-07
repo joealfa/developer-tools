@@ -25,6 +25,25 @@ export function getRelativePath(uri: vscode.Uri): string | null {
 }
 
 /**
+ * Resolve a stable path for note tracking from a text document.
+ * Supports workspace files, files outside the workspace, untitled files,
+ * and VS Code user-data files (for example, settings.json).
+ */
+export function getTrackableDocumentPath(document: vscode.TextDocument): string | null {
+	const { scheme } = document.uri;
+
+	if (scheme === 'untitled') {
+		return document.fileName;
+	}
+
+	if (scheme === 'file' || scheme === 'vscode-userdata') {
+		return getRelativePath(document.uri) ?? vscode.workspace.asRelativePath(document.uri, false);
+	}
+
+	return null;
+}
+
+/**
  * Insert text at cursor positions in the active editor.
  * Supports multiple cursors - each cursor gets a unique generated value.
  * If a selection spans multiple lines, replaces with one value per line.
