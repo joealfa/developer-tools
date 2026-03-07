@@ -7,7 +7,7 @@
     "url": "https://github.com/joealfa/developer-tools"
   },
   "icon": "images/icon.png",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "engines": {
     "vscode": "^1.109.0"
   },
