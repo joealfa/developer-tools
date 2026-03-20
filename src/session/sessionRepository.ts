@@ -71,7 +71,7 @@ export class SessionRepository {
 
 		try {
 			const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-			return JSON.parse(content.toString()) as SessionSnapshot;
+			return this.parseSessionSnapshot(content.toString());
 		} catch {
 			return null;
 		}
@@ -135,7 +135,10 @@ export class SessionRepository {
 				try {
 					const filePath = path.join(historyDir, name);
 					const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-					const session: SessionSnapshot = JSON.parse(content.toString());
+					const session = this.parseSessionSnapshot(content.toString());
+					if (!session) {
+						continue;
+					}
 
 					results.push({
 						id: session.id,
@@ -177,7 +180,10 @@ export class SessionRepository {
 				}
 				const filePath = path.join(historyDir, name);
 				const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-				const session: SessionSnapshot = JSON.parse(content.toString());
+				const session = this.parseSessionSnapshot(content.toString());
+				if (!session) {
+					continue;
+				}
 				if (session.id === id) {
 					return session;
 				}
@@ -205,7 +211,10 @@ export class SessionRepository {
 				}
 				const filePath = path.join(historyDir, name);
 				const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
-				const session: SessionSnapshot = JSON.parse(content.toString());
+				const session = this.parseSessionSnapshot(content.toString());
+				if (!session) {
+					continue;
+				}
 				if (session.id === id) {
 					await vscode.workspace.fs.delete(vscode.Uri.file(filePath));
 					return true;
@@ -237,5 +246,69 @@ export class SessionRepository {
 		} catch {
 			// Ignore
 		}
+	}
+
+	private parseSessionSnapshot(raw: string): SessionSnapshot | null {
+		try {
+			const parsed = JSON.parse(raw) as unknown;
+			return this.isSessionSnapshot(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+
+	private isSessionSnapshot(value: unknown): value is SessionSnapshot {
+		if (!this.isRecord(value)) {
+			return false;
+		}
+
+		if (
+			typeof value.id !== 'string' ||
+			typeof value.startedAt !== 'number' ||
+			!(value.endedAt === null || typeof value.endedAt === 'number') ||
+			(value.status !== 'active' && value.status !== 'completed' && value.status !== 'recovered') ||
+			typeof value.totalEstimatedTimeMs !== 'number' ||
+			!Array.isArray(value.files) ||
+			!Array.isArray(value.events)
+		) {
+			return false;
+		}
+
+		for (const file of value.files) {
+			if (!this.isRecord(file)) {
+				return false;
+			}
+			if (
+				typeof file.filePath !== 'string' ||
+				typeof file.totalEdits !== 'number' ||
+				typeof file.linesAdded !== 'number' ||
+				typeof file.linesRemoved !== 'number' ||
+				typeof file.firstTouched !== 'number' ||
+				typeof file.lastTouched !== 'number' ||
+				typeof file.estimatedTimeMs !== 'number'
+			) {
+				return false;
+			}
+		}
+
+		for (const event of value.events) {
+			if (!this.isRecord(event)) {
+				return false;
+			}
+			if (
+				typeof event.filePath !== 'string' ||
+				typeof event.timestamp !== 'number' ||
+				typeof event.linesAdded !== 'number' ||
+				typeof event.linesRemoved !== 'number'
+			) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null;
 	}
 }

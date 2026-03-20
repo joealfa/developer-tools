@@ -4,6 +4,26 @@ All notable changes to the "developer-tools" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.7] - 2026-03-21
+
+### Added
+- **Webview security helpers** - Introduced shared webview security utilities for nonce generation and Content Security Policy (CSP) meta tags, and applied them across all sidebar webviews
+- **Security utility tests** - Added unit tests for webview nonce generation and CSP tag output
+
+### Changed
+- **Password defaults strengthened** - Password generator defaults now require at least 2 numbers and 2 special characters
+- **Command registration architecture** - Refactored command wiring to dependency injection and removed global shared extension state
+- **Port scan scheduling** - Port scans are now queued to avoid overlapping scans and reduce race conditions
+
+### Fixed
+- **Webview message hardening** - Added strict message payload validation across notes, password, ports, and session webviews
+- **Notes import validation** - Import now validates payload structure and note fields before merging data
+- **Notes repository robustness** - Debounced saves now resolve all queued callers reliably and JSON loads/migrations are validated before use
+- **Untitled Save All mapping** - Notes file tracking now handles multiple pending untitled saves without cross-document remap errors
+- **Session history resilience** - Invalid/corrupt session snapshots are safely skipped instead of breaking history reads
+- **Password generation edge cases** - Password generation now normalizes impossible minima and guarantees required-character composition without overwrite collisions
+- **Port operations safety** - Added PID validation and bounded process-kill timeouts for better reliability
+
 ## [1.0.6] - 2026-03-07
 
 ### Added

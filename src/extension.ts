@@ -16,7 +16,6 @@ import {
 	PortManagerProvider,
 	SessionTrackerProvider,
 } from './webviews';
-import { ExtensionState } from './extensionState';
 import { SessionService, SessionTracker } from './session';
 import { PortService } from './ports';
 import { ComplexityService, ComplexityDecorations } from './complexity';
@@ -64,10 +63,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	});
 
-	// Store cursor tracker and note editor provider in shared state for commands to access
-	ExtensionState.setCursorTracker(cursorTracker);
-	ExtensionState.setNoteEditorProvider(noteEditorProvider);
-
 	// Register Notes Table Provider
 	const notesTableProvider = new NotesTableProvider(context, notesService);
 	notesTableProvider.setNoteEditorProvider(noteEditorProvider);
@@ -97,7 +92,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	let sessionTracker: SessionTracker | undefined;
 	if (config.get('session.enabled')) {
 		sessionTracker = new SessionTracker(sessionService);
-		ExtensionState.setSessionTracker(sessionTracker);
 
 		// Recover any unsaved session from a previous VS Code instance
 		const recovered = await sessionService.recoverSession();
@@ -121,7 +115,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// ===== Port Manager =====
 	const portService = new PortService();
-	ExtensionState.setPortService(portService);
 
 	const portManagerProvider = new PortManagerProvider(context, portService);
 	context.subscriptions.push(
@@ -130,12 +123,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// ===== Complexity Hints =====
 	const complexityService = new ComplexityService();
-	ExtensionState.setComplexityService(complexityService);
 
 	const complexityDecorations = new ComplexityDecorations(complexityService, context);
 
 	// Register all commands
-	const disposables = registerCommands(context);
+	const disposables = registerCommands(context, {
+		getNoteEditorProvider: () => noteEditorProvider,
+		getSessionTracker: () => sessionTracker,
+		setSessionTracker: (tracker) => {
+			sessionTracker = tracker;
+		},
+		getPortService: () => portService,
+		getComplexityService: () => complexityService,
+	});
 	context.subscriptions.push(...disposables);
 
 	// Add all disposables to subscriptions for cleanup
@@ -171,5 +171,4 @@ export function deactivate(): void {
 
 	NotesService.resetInstance();
 	SessionService.resetInstance();
-	ExtensionState.reset();
 }

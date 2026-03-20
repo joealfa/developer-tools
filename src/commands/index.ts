@@ -12,8 +12,18 @@ import {
 import type { PasswordOptions } from '../generators';
 import { getTrackableDocumentPath, insertTextAtCursor } from '../utils';
 import { NotesService, NotesExportService, CATEGORY_CONFIG } from '../notes';
-import { ExtensionState } from '../extensionState';
 import { SessionService, SessionTracker } from '../session';
+import type { NoteEditorProvider } from '../webviews/noteEditorProvider';
+import type { PortService } from '../ports/portService';
+import type { ComplexityService } from '../complexity/complexityService';
+
+export interface CommandDependencies {
+	getNoteEditorProvider: () => NoteEditorProvider | null;
+	getSessionTracker: () => SessionTracker | undefined;
+	setSessionTracker: (tracker: SessionTracker | undefined) => void;
+	getPortService: () => PortService;
+	getComplexityService: () => ComplexityService;
+}
 
 /**
  * Prompt the user to enable a feature if it's not already enabled.
@@ -40,17 +50,6 @@ async function promptEnableFeature(
 	await config.update(configKey, true, vscode.ConfigurationTarget.Global);
 	onEnabled?.(context);
 	return true;
-}
-
-/**
- * Ensures a SessionTracker is running (creates one if not already active).
- */
-function ensureSessionTracker(context: vscode.ExtensionContext): void {
-	if (!ExtensionState.getSessionTracker()) {
-		const tracker = new SessionTracker(SessionService.getInstance());
-		ExtensionState.setSessionTracker(tracker);
-		context.subscriptions.push(tracker);
-	}
 }
 
 /**
@@ -211,7 +210,16 @@ interface CommandDefinition {
 /**
  * All available commands
  */
-const commands: CommandDefinition[] = [
+function getCommands(deps: CommandDependencies): CommandDefinition[] {
+	const ensureSessionTracker = (context: vscode.ExtensionContext): void => {
+		if (!deps.getSessionTracker()) {
+			const tracker = new SessionTracker(SessionService.getInstance());
+			deps.setSessionTracker(tracker);
+			context.subscriptions.push(tracker);
+		}
+	};
+
+	return [
 	{
 		id: 'developer-tools.generateAndInsert',
 		handler: async () => {
@@ -295,7 +303,7 @@ const commands: CommandDefinition[] = [
 				return;
 			}
 
-			const noteEditorProvider = ExtensionState.getNoteEditorProvider();
+			const noteEditorProvider = deps.getNoteEditorProvider();
 			const lineNumber = editor.selection.active.line;
 
 			if (noteEditorProvider) {
@@ -328,7 +336,7 @@ const commands: CommandDefinition[] = [
 				return;
 			}
 
-			const noteEditorProvider = ExtensionState.getNoteEditorProvider();
+			const noteEditorProvider = deps.getNoteEditorProvider();
 			if (noteEditorProvider) {
 				await noteEditorProvider.showForLine(filePath, lineNumber);
 			}
@@ -559,7 +567,8 @@ const commands: CommandDefinition[] = [
 			if (sessionService.isActive()) {
 				await sessionService.stopSession();
 			}
-			const tracker = ExtensionState.takeSessionTracker();
+			const tracker = deps.getSessionTracker();
+			deps.setSessionTracker(undefined);
 			tracker?.dispose();
 			await config.update('session.enabled', false, vscode.ConfigurationTarget.Global);
 			vscode.window.showInformationMessage('Session Tracker disabled.');
@@ -573,10 +582,7 @@ const commands: CommandDefinition[] = [
 			if (!enabled) {
 				return;
 			}
-			const portService = ExtensionState.getPortService();
-			if (portService) {
-				await portService.scan();
-			}
+			await deps.getPortService().scan();
 		},
 	},
 	{
@@ -586,10 +592,7 @@ const commands: CommandDefinition[] = [
 			if (!enabled) {
 				return;
 			}
-			const portService = ExtensionState.getPortService();
-			if (!portService) {
-				return;
-			}
+			const portService = deps.getPortService();
 			const ports = portService.getPorts();
 			if (ports.length === 0) {
 				vscode.window.showInformationMessage('No listening ports found.');
@@ -651,9 +654,9 @@ const commands: CommandDefinition[] = [
 	{
 		id: 'developer-tools.analyzeFileComplexity',
 		handler: () => {
-			const complexityService = ExtensionState.getComplexityService();
+			const complexityService = deps.getComplexityService();
 			const editor = vscode.window.activeTextEditor;
-			if (!editor || !complexityService) {
+			if (!editor) {
 				return;
 			}
 			complexityService.analyzeDocument(editor.document);
@@ -662,9 +665,9 @@ const commands: CommandDefinition[] = [
 	{
 		id: 'developer-tools.showComplexityReport',
 		handler: () => {
-			const complexityService = ExtensionState.getComplexityService();
+			const complexityService = deps.getComplexityService();
 			const editor = vscode.window.activeTextEditor;
-			if (!editor || !complexityService) {
+			if (!editor) {
 				vscode.window.showInformationMessage('Open a file to see complexity report.');
 				return;
 			}
@@ -704,12 +707,16 @@ const commands: CommandDefinition[] = [
 		},
 	},
 ];
+}
 
 /**
  * Register all commands and return disposables
  */
-export function registerCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
-	return commands.map((cmd) =>
+export function registerCommands(
+	context: vscode.ExtensionContext,
+	deps: CommandDependencies
+): vscode.Disposable[] {
+	return getCommands(deps).map((cmd) =>
 		vscode.commands.registerCommand(cmd.id, () => cmd.handler(context))
 	);
 }

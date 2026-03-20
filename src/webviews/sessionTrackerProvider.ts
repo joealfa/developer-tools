@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { SessionService } from '../session';
 import { escapeHtml } from '../utils';
+import { createWebviewNonce, getWebviewCspMetaTag } from './security';
 
 export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = 'developer-tools.sessionTracker';
@@ -42,6 +43,10 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 
 		webviewView.webview.onDidReceiveMessage(
 			async (message) => {
+                if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+                    return;
+                }
+
 				switch (message.command) {
 					case 'start':
 						this.sessionService.startSession();
@@ -71,7 +76,10 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 						await this.sendHistory();
 						break;
 					case 'view-session': {
-						const session = await this.sessionService.loadHistorySession(message.id);
+                        if (typeof message.id !== 'string' || message.id.length === 0) {
+                            break;
+                        }
+                        const session = await this.sessionService.loadHistorySession(message.id);
 						if (session) {
 							this.view?.webview.postMessage({
 								command: 'show-history-session',
@@ -81,6 +89,9 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 						break;
 					}
 					case 'delete-session':
+                        if (typeof message.id !== 'string' || message.id.length === 0) {
+                            break;
+                        }
 						await this.sessionService.deleteHistorySession(message.id);
 						await this.sendHistory();
 						break;
@@ -89,6 +100,12 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 						await this.sendHistory();
 						break;
 					case 'export-history-session': {
+                        if (typeof message.id !== 'string' || message.id.length === 0) {
+                            break;
+                        }
+                        if (message.format !== 'markdown' && message.format !== 'json') {
+                            break;
+                        }
 						const exported = await this.sessionService.exportSession(
 							message.id,
 							message.format
@@ -161,11 +178,14 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 	}
 
 	private getHtml(): string {
+		const nonce = createWebviewNonce();
+		const cspMetaTag = getWebviewCspMetaTag(nonce);
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        ${cspMetaTag}
     <title>Session Tracker</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -321,7 +341,7 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
         </div>
     </div>
 
-    <div class="back-btn" id="backBtn" onclick="backToCurrent()">← Back to Current Session</div>
+    <div class="back-btn" id="backBtn">← Back to Current Session</div>
 
     <div class="section" id="filesSection" style="display:none">
         <div class="section-title">Files Touched</div>
@@ -349,7 +369,7 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
         </div>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         let isActive = false;
         let historyLoaded = false;
@@ -389,6 +409,9 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
             if (confirm('Delete all session history?')) {
                 vscode.postMessage({ command: 'delete-all-sessions' });
             }
+        });
+        document.getElementById('backBtn').addEventListener('click', () => {
+            backToCurrent();
         });
 
         function formatDuration(ms) {
@@ -440,15 +463,33 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--vscode-descriptionForeground)">No files edited yet</td></tr>';
                 return;
             }
-            tbody.innerHTML = files.map(f =>
-                '<tr>' +
-                '<td title="' + f.filePath + '">' + f.filePath.split('/').pop() + '</td>' +
-                '<td>' + f.totalEdits + '</td>' +
-                '<td>+' + f.linesAdded + '</td>' +
-                '<td>-' + f.linesRemoved + '</td>' +
-                '<td>' + formatDuration(f.estimatedTimeMs) + '</td>' +
-                '</tr>'
-            ).join('');
+            tbody.innerHTML = '';
+            files.forEach(f => {
+                const row = document.createElement('tr');
+
+                const fileCell = document.createElement('td');
+                fileCell.title = f.filePath;
+                fileCell.textContent = (f.filePath || '').split('/').pop() || f.filePath;
+
+                const editsCell = document.createElement('td');
+                editsCell.textContent = String(f.totalEdits);
+
+                const addedCell = document.createElement('td');
+                addedCell.textContent = '+' + String(f.linesAdded);
+
+                const removedCell = document.createElement('td');
+                removedCell.textContent = '-' + String(f.linesRemoved);
+
+                const timeCell = document.createElement('td');
+                timeCell.textContent = formatDuration(f.estimatedTimeMs);
+
+                row.appendChild(fileCell);
+                row.appendChild(editsCell);
+                row.appendChild(addedCell);
+                row.appendChild(removedCell);
+                row.appendChild(timeCell);
+                tbody.appendChild(row);
+            });
         }
 
         function renderHistory(history) {
@@ -460,21 +501,59 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
                 return;
             }
             clearBtn.style.display = '';
-            container.innerHTML = history.map(h =>
-                '<div class="history-item">' +
-                '<div>' +
-                    '<div>' + formatDate(h.startedAt) + '</div>' +
-                    '<div class="history-meta">' + formatDuration(h.totalEstimatedTimeMs) + ' · ' + h.totalFiles + ' files ' +
-                    '<span class="badge badge-' + h.status + '">' + h.status + '</span></div>' +
-                '</div>' +
-                '<div class="history-actions">' +
-                    '<button onclick="viewSession(\\''+h.id+'\\')">View</button>' +
-                    '<button onclick="exportSession(\\''+h.id+'\\', \\'markdown\\')">MD</button>' +
-                    '<button onclick="exportSession(\\''+h.id+'\\', \\'json\\')">JSON</button>' +
-                    '<button class="delete-btn" onclick="deleteSession(\\''+h.id+'\\')">Del</button>' +
-                '</div>' +
-                '</div>'
-            ).join('');
+            container.innerHTML = '';
+
+            history.forEach(h => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+
+                const infoWrap = document.createElement('div');
+                const dateRow = document.createElement('div');
+                dateRow.textContent = formatDate(h.startedAt);
+
+                const metaRow = document.createElement('div');
+                metaRow.className = 'history-meta';
+
+                const badge = document.createElement('span');
+                const safeStatus = h.status === 'completed' || h.status === 'recovered' ? h.status : 'completed';
+                badge.className = 'badge badge-' + safeStatus;
+                badge.textContent = safeStatus;
+
+                metaRow.textContent = formatDuration(h.totalEstimatedTimeMs) + ' · ' + h.totalFiles + ' files ';
+                metaRow.appendChild(badge);
+
+                infoWrap.appendChild(dateRow);
+                infoWrap.appendChild(metaRow);
+
+                const actions = document.createElement('div');
+                actions.className = 'history-actions';
+
+                const viewBtn = document.createElement('button');
+                viewBtn.textContent = 'View';
+                viewBtn.addEventListener('click', () => viewSession(h.id));
+
+                const mdBtn = document.createElement('button');
+                mdBtn.textContent = 'MD';
+                mdBtn.addEventListener('click', () => exportSession(h.id, 'markdown'));
+
+                const jsonBtn = document.createElement('button');
+                jsonBtn.textContent = 'JSON';
+                jsonBtn.addEventListener('click', () => exportSession(h.id, 'json'));
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.textContent = 'Del';
+                delBtn.addEventListener('click', () => deleteSession(h.id));
+
+                actions.appendChild(viewBtn);
+                actions.appendChild(mdBtn);
+                actions.appendChild(jsonBtn);
+                actions.appendChild(delBtn);
+
+                item.appendChild(infoWrap);
+                item.appendChild(actions);
+                container.appendChild(item);
+            });
         }
 
         function viewSession(id) {

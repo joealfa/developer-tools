@@ -137,12 +137,13 @@ export class NotesExportService implements vscode.Disposable {
 
 		try {
 			const content = await vscode.workspace.fs.readFile(importUri);
-			const data: NotesStorageData = JSON.parse(content.toString());
-
-			if (!data.notes || !Array.isArray(data.notes)) {
+			const parsed = JSON.parse(content.toString()) as unknown;
+			if (!this.isValidNotesStorageData(parsed)) {
 				vscode.window.showErrorMessage('Invalid notes file format.');
 				return false;
 			}
+
+			const data: NotesStorageData = parsed;
 
 			const existingNotes = this.notesService.getAll();
 			const existingIds = new Set(existingNotes.map((n) => n.id));
@@ -214,6 +215,67 @@ export class NotesExportService implements vscode.Disposable {
 			vscode.window.showErrorMessage(`Failed to import notes: ${error}`);
 			return false;
 		}
+	}
+
+	private isValidNotesStorageData(value: unknown): value is NotesStorageData {
+		if (!this.isRecord(value) || !Array.isArray(value.notes)) {
+			return false;
+		}
+
+		if (typeof value.version !== 'number') {
+			return false;
+		}
+
+		return value.notes.every((note) => this.isValidNote(note));
+	}
+
+	private isValidNote(value: unknown): value is Note {
+		if (!this.isRecord(value)) {
+			return false;
+		}
+
+		const validCategory =
+			value.category === 'note' ||
+			value.category === 'todo' ||
+			value.category === 'fixme' ||
+			value.category === 'question';
+
+		const validStatus = value.status === 'active' || value.status === 'orphaned';
+
+		return (
+			typeof value.id === 'string' &&
+			typeof value.filePath === 'string' &&
+			typeof value.lineNumber === 'number' &&
+			Number.isInteger(value.lineNumber) &&
+			value.lineNumber >= 0 &&
+			typeof value.lineContent === 'string' &&
+			typeof value.lineContentHash === 'string' &&
+			this.isSurroundingContext(value.surroundingContext) &&
+			typeof value.text === 'string' &&
+			validCategory &&
+			validStatus &&
+			typeof value.createdAt === 'string' &&
+			typeof value.updatedAt === 'string'
+		);
+	}
+
+	private isSurroundingContext(value: unknown): boolean {
+		if (!this.isRecord(value)) {
+			return false;
+		}
+
+		const lineBeforeOk =
+			!Object.prototype.hasOwnProperty.call(value, 'lineBefore') ||
+			typeof value.lineBefore === 'string';
+		const lineAfterOk =
+			!Object.prototype.hasOwnProperty.call(value, 'lineAfter') ||
+			typeof value.lineAfter === 'string';
+
+		return lineBeforeOk && lineAfterOk;
+	}
+
+	private isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null;
 	}
 
 	/**

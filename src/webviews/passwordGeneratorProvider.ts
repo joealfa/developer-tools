@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { generatePassword, DEFAULT_PASSWORD_OPTIONS, PasswordOptions } from '../generators';
 import { insertTextIntoEditor, escapeHtml } from '../utils';
 import { Icons } from './icons';
+import { createWebviewNonce, getWebviewCspMetaTag } from './security';
 
 /**
  * Password Generator WebView Provider for the sidebar
@@ -27,29 +28,39 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 		// Handle messages from the webview
 		webviewView.webview.onDidReceiveMessage(
 			(message) => {
+				if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+					return;
+				}
+
 				switch (message.command) {
-					case 'generate':
-						const newPassword = generatePassword(message.options as PasswordOptions);
+					case 'generate': {
+						const options = this.sanitizeOptions(message.options);
+						const newPassword = generatePassword(options);
 						webviewView.webview.postMessage({
 							command: 'updatePassword',
 							password: newPassword,
 						});
 						break;
+					}
 
-					case 'copy':
-						vscode.env.clipboard.writeText(message.password);
+					case 'copy': {
+						const passwordToCopy = typeof message.password === 'string' ? message.password : '';
+						vscode.env.clipboard.writeText(passwordToCopy);
 						vscode.window.showInformationMessage('Password copied to clipboard!');
 						break;
+					}
 
-					case 'insert':
+					case 'insert': {
+						const passwordToInsert = typeof message.password === 'string' ? message.password : '';
 						const editor = vscode.window.activeTextEditor;
 						if (editor) {
-							insertTextIntoEditor(editor, message.password);
+							insertTextIntoEditor(editor, passwordToInsert);
 							vscode.window.showInformationMessage('Password inserted!');
 						} else {
 							vscode.window.showErrorMessage('No active text editor');
 						}
 						break;
+					}
 				}
 			},
 			undefined,
@@ -61,11 +72,14 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 	 * Get the HTML content for the password generator webview
 	 */
 	private getHtml(initialPassword: string): string {
+		const nonce = createWebviewNonce();
+		const cspMetaTag = getWebviewCspMetaTag(nonce);
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	${cspMetaTag}
 	<title>Password Generator</title>
 	<style>
 		* {
@@ -242,11 +256,11 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 		<div class="number-inputs">
 			<div class="form-group">
 				<label for="minNumbers">Min numbers</label>
-				<input type="number" id="minNumbers" value="1" min="0" max="10">
+				<input type="number" id="minNumbers" value="2" min="0" max="10">
 			</div>
 			<div class="form-group">
 				<label for="minSpecial">Min special</label>
-				<input type="number" id="minSpecial" value="1" min="0" max="10">
+				<input type="number" id="minSpecial" value="2" min="0" max="10">
 			</div>
 		</div>
 		<label class="checkbox-item">
@@ -255,7 +269,7 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 		</label>
 	</div>
 
-	<script>
+	<script nonce="${nonce}">
 		const vscode = acquireVsCodeApi();
 
 		function getOptions() {
@@ -327,5 +341,59 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 	</script>
 </body>
 </html>`;
+	}
+
+	private sanitizeOptions(options: unknown): PasswordOptions {
+		const source =
+			typeof options === 'object' && options !== null
+				? (options as Partial<PasswordOptions>)
+				: {};
+
+		const length = this.clampNumber(source.length, 5, 128, DEFAULT_PASSWORD_OPTIONS.length);
+		const includeUppercase = this.asBoolean(
+			source.includeUppercase,
+			DEFAULT_PASSWORD_OPTIONS.includeUppercase
+		);
+		const includeLowercase = this.asBoolean(
+			source.includeLowercase,
+			DEFAULT_PASSWORD_OPTIONS.includeLowercase
+		);
+		const includeNumbers = this.asBoolean(
+			source.includeNumbers,
+			DEFAULT_PASSWORD_OPTIONS.includeNumbers
+		);
+		const includeSpecial = this.asBoolean(
+			source.includeSpecial,
+			DEFAULT_PASSWORD_OPTIONS.includeSpecial
+		);
+
+		const minNumbers = this.clampNumber(source.minNumbers, 0, length, DEFAULT_PASSWORD_OPTIONS.minNumbers);
+		const minSpecial = this.clampNumber(source.minSpecial, 0, length, DEFAULT_PASSWORD_OPTIONS.minSpecial);
+		const avoidAmbiguous = this.asBoolean(
+			source.avoidAmbiguous,
+			DEFAULT_PASSWORD_OPTIONS.avoidAmbiguous
+		);
+
+		return {
+			length,
+			includeUppercase,
+			includeLowercase,
+			includeNumbers,
+			includeSpecial,
+			minNumbers,
+			minSpecial,
+			avoidAmbiguous,
+		};
+	}
+
+	private clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+		if (typeof value !== 'number' || !Number.isFinite(value)) {
+			return fallback;
+		}
+		return Math.max(min, Math.min(max, Math.floor(value)));
+	}
+
+	private asBoolean(value: unknown, fallback: boolean): boolean {
+		return typeof value === 'boolean' ? value : fallback;
 	}
 }

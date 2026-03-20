@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { PortService, PortInfo } from '../ports';
 import { escapeHtml } from '../utils';
+import { createWebviewNonce, getWebviewCspMetaTag } from './security';
 
 export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = 'developer-tools.portManager';
@@ -41,39 +42,48 @@ export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.D
 
 		webviewView.webview.onDidReceiveMessage(
 			async (message) => {
-				switch (message.command) {
-					case 'refresh':
-						await this.portService.scan();
-						break;
-					case 'kill': {
-						const success = await this.portService.killProcess(message.pid);
-						if (success) {
-							vscode.window.showInformationMessage(
-								`Process ${message.pid} terminated.`
-							);
-							await this.portService.scan();
-						} else {
-							vscode.window.showErrorMessage(
-								`Failed to kill process ${message.pid}. You may need elevated permissions.`
-							);
-						}
-						break;
-					}
-					case 'toggle-auto-refresh':
-						if (message.enabled) {
-							this.portService.startAutoRefresh();
-						} else {
-							this.portService.stopAutoRefresh();
-						}
-						break;
-					case 'filter':
-						const filtered = this.portService.getFilteredPorts(message.text);
-						webviewView.webview.postMessage({
-							command: 'ports-updated',
-							ports: this.sanitizePorts(filtered),
-						});
-						break;
-				}
+                if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+                    return;
+                }
+
+                switch (message.command) {
+                    case 'refresh':
+                        await this.portService.scan();
+                        break;
+                    case 'kill': {
+                        if (!Number.isInteger(message.pid) || message.pid <= 0) {
+                            break;
+                        }
+                        const success = await this.portService.killProcess(message.pid);
+                        if (success) {
+                            vscode.window.showInformationMessage(
+                                `Process ${message.pid} terminated.`
+                            );
+                            await this.portService.scan();
+                        } else {
+                            vscode.window.showErrorMessage(
+                                `Failed to kill process ${message.pid}. You may need elevated permissions.`
+                            );
+                        }
+                        break;
+                    }
+                    case 'toggle-auto-refresh':
+                        if (message.enabled === true) {
+                            this.portService.startAutoRefresh();
+                        } else if (message.enabled === false) {
+                            this.portService.stopAutoRefresh();
+                        }
+                        break;
+                    case 'filter': {
+                        const filterText = typeof message.text === 'string' ? message.text : '';
+                        const filtered = this.portService.getFilteredPorts(filterText);
+                        webviewView.webview.postMessage({
+                            command: 'ports-updated',
+                            ports: this.sanitizePorts(filtered),
+                        });
+                        break;
+                    }
+                }
 			},
 			undefined,
 			this.context.subscriptions
@@ -103,11 +113,14 @@ export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.D
 	}
 
 	private getHtml(): string {
+		const nonce = createWebviewNonce();
+		const cspMetaTag = getWebviewCspMetaTag(nonce);
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        ${cspMetaTag}
     <title>Port Manager</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -246,7 +259,7 @@ export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.D
         </div>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         let autoRefreshEnabled = true;
         let ports = [];
@@ -270,7 +283,23 @@ export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.D
         function renderPorts(data) {
             const container = document.getElementById('portList');
             if (!data || data.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>No listening ports found</p><button class="toolbar-btn" onclick="vscode.postMessage({command:\\'refresh\\'})">Refresh</button></div>';
+                container.innerHTML = '';
+                const state = document.createElement('div');
+                state.className = 'empty-state';
+
+                const msg = document.createElement('p');
+                msg.textContent = 'No listening ports found';
+
+                const refreshBtn = document.createElement('button');
+                refreshBtn.className = 'toolbar-btn';
+                refreshBtn.textContent = 'Refresh';
+                refreshBtn.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'refresh' });
+                });
+
+                state.appendChild(msg);
+                state.appendChild(refreshBtn);
+                container.appendChild(state);
                 return;
             }
 

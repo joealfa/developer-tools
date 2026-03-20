@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { NotesService, Note, NoteCategory, CATEGORY_CONFIG } from '../notes';
 import { escapeHtml, getTrackableDocumentPath } from '../utils';
 import { Icons } from './icons';
+import { createWebviewNonce, getWebviewCspMetaTag } from './security';
 
 /**
  * WebviewViewProvider for the note editor in the secondary sidebar
@@ -231,8 +232,24 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+			return;
+		}
+
 		switch (message.command) {
-			case 'addNote':
+			case 'addNote': {
+				if (typeof message.text !== 'string') {
+					break;
+				}
+				if (
+					message.category !== 'note' &&
+					message.category !== 'todo' &&
+					message.category !== 'fixme' &&
+					message.category !== 'question'
+				) {
+					break;
+				}
+
 				// Get the line content from the active editor
 				const editor = vscode.window.activeTextEditor;
 				const lineContent =
@@ -251,8 +268,23 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 				// Reset showAddForm after adding note
 				this.showAddForm = false;
 				break;
+			}
 
 			case 'updateNote':
+				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+					break;
+				}
+				if (typeof message.text !== 'string') {
+					break;
+				}
+				if (
+					message.category !== 'note' &&
+					message.category !== 'todo' &&
+					message.category !== 'fixme' &&
+					message.category !== 'question'
+				) {
+					break;
+				}
 				await this.notesService.update(message.noteId, {
 					text: message.text,
 					category: message.category as NoteCategory,
@@ -260,6 +292,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 				break;
 
 			case 'deleteNote':
+				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+					break;
+				}
 				await this.notesService.delete(message.noteId);
 				break;
 		}
@@ -363,6 +398,9 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 			return this.getEmptyStateHtml();
 		}
 
+		const nonce = createWebviewNonce();
+		const cspMetaTag = getWebviewCspMetaTag(nonce);
+
 		const locationInfo = this.getLocationInfo(this.currentFilePath);
 
 		// Preserve the previous UX: when there are no notes and the add form is not
@@ -382,19 +420,19 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 							const categoryConfig = CATEGORY_CONFIG[note.category];
 							const createdDate = new Date(note.createdAt).toLocaleString();
 							return `
-            <div class="note-card">
+			<div class="note-card" data-note-id="${note.id}">
                 <div class="note-header">
                     <span class="category-badge category-${note.category}">
                         ${this.getCategoryIcon(note.category)} ${categoryConfig.label}
                     </span>
-                    <button class="icon-btn" onclick="deleteNote('${note.id}')" title="Delete">
+					<button class="icon-btn delete-note-btn" data-note-id="${note.id}" title="Delete">
                         ${Icons.trash2}
                     </button>
                 </div>
-                <textarea class="note-text" id="note-${note.id}" onchange="updateNote('${note.id}')">${escapeHtml(note.text)}</textarea>
+				<textarea class="note-text existing-note-text" id="note-${note.id}" data-note-id="${note.id}">${escapeHtml(note.text)}</textarea>
                 <div class="note-footer">
                     <span class="note-date">${createdDate}</span>
-                    <select class="category-select" onchange="updateNoteCategory('${note.id}', this.value)">
+					<select class="category-select" data-note-id="${note.id}">
                         ${Object.entries(CATEGORY_CONFIG)
 							.map(
 								([key, config]) =>
@@ -419,7 +457,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 				${categoryOptions}
 			</select>
 		</div>
-		<button class="btn" onclick="addNote()">Add Note</button>
+		<button class="btn" id="addNoteBtn">Add Note</button>
 	`;
 
 		return `<!DOCTYPE html>
@@ -427,6 +465,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	${cspMetaTag}
     <title>Note Editor</title>
     <style>
         * {
@@ -647,7 +686,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 			: ''
 	}
 
-    <script>
+	<script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
         // No auto-focus - let users manually click into the form
@@ -675,7 +714,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 
         function updateNote(noteId) {
             const text = document.getElementById('note-' + noteId).value.trim();
-            const categorySelect = event.target.closest('.note-card').querySelector('.category-select');
+			const categorySelect = document.querySelector('.category-select[data-note-id="' + noteId + '"]');
             const category = categorySelect.value;
 
             if (!text) {
@@ -708,6 +747,31 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
                 noteId: noteId
             });
         }
+
+		document.getElementById('addNoteBtn')?.addEventListener('click', () => {
+			addNote();
+		});
+
+		document.querySelectorAll('.existing-note-text[data-note-id]').forEach((textarea) => {
+			textarea.addEventListener('change', (event) => {
+				const noteId = event.currentTarget.dataset.noteId;
+				updateNote(noteId);
+			});
+		});
+
+		document.querySelectorAll('.category-select[data-note-id]').forEach((select) => {
+			select.addEventListener('change', (event) => {
+				const target = event.currentTarget;
+				updateNoteCategory(target.dataset.noteId, target.value);
+			});
+		});
+
+		document.querySelectorAll('.delete-note-btn[data-note-id]').forEach((button) => {
+			button.addEventListener('click', (event) => {
+				const noteId = event.currentTarget.dataset.noteId;
+				deleteNote(noteId);
+			});
+		});
     </script>
 </body>
 </html>`;

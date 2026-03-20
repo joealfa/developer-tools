@@ -13,8 +13,9 @@ import { getRelativePath } from '../utils';
 export class NotesFileTracker implements vscode.Disposable {
 	private notesService: NotesService;
 	private disposables: vscode.Disposable[] = [];
-	// Tracks the fileName of an untitled document about to be saved for the first time
-	private pendingUntitledPath: string | null = null;
+	// Tracks untitled documents about to be saved for the first time.
+	// A queue avoids cross-document overwrite when Save All triggers multiple events.
+	private pendingUntitledPaths: string[] = [];
 
 	constructor(notesService: NotesService) {
 		this.notesService = notesService;
@@ -32,25 +33,29 @@ export class NotesFileTracker implements vscode.Disposable {
 		this.disposables.push(
 			vscode.workspace.onWillSaveTextDocument((event) => {
 				if (event.document.uri.scheme === 'untitled') {
-					this.pendingUntitledPath = event.document.fileName;
+					if (!this.pendingUntitledPaths.includes(event.document.fileName)) {
+						this.pendingUntitledPaths.push(event.document.fileName);
+					}
 				} else {
-					// A regular file is being saved — clear any stale pending untitled path
-					// (handles the case where a Save As was cancelled then a normal save follows)
-					this.pendingUntitledPath = null;
+					// A regular file save can happen independently; keep the queue intact.
+					// Entries are consumed only when we can confidently map notes.
 				}
 			})
 		);
 
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
-				if (document.uri.scheme === 'file' && this.pendingUntitledPath !== null) {
-					const untitledPath = this.pendingUntitledPath;
-					this.pendingUntitledPath = null;
+				if (document.uri.scheme === 'file' && this.pendingUntitledPaths.length > 0) {
+					const newPath = vscode.workspace.asRelativePath(document.uri, false);
 
-					const notes = this.notesService.getByFile(untitledPath);
-					if (notes.length > 0) {
-						const newPath = vscode.workspace.asRelativePath(document.uri, false);
-						await this.notesService.updateFilePath(untitledPath, newPath);
+					for (let i = 0; i < this.pendingUntitledPaths.length; i++) {
+						const untitledPath = this.pendingUntitledPaths[i];
+						const notes = this.notesService.getByFile(untitledPath);
+						if (notes.length > 0) {
+							this.pendingUntitledPaths.splice(i, 1);
+							await this.notesService.updateFilePath(untitledPath, newPath);
+							break;
+						}
 					}
 				}
 			})
@@ -154,5 +159,6 @@ export class NotesFileTracker implements vscode.Disposable {
 			disposable.dispose();
 		}
 		this.disposables = [];
+		this.pendingUntitledPaths = [];
 	}
 }

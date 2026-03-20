@@ -39,7 +39,7 @@ Generate cryptographically secure passwords in the sidebar. Uses Node.js `crypto
 **Options:**
 - Length: 5–128 characters (default 14)
 - Character sets: Uppercase, Lowercase, Numbers, Special (`!@#$%^&*`)
-- Minimum counts for numbers and special characters
+- Minimum counts for numbers and special characters (default: 2 numbers, 2 special)
 - Avoid ambiguous characters (`0`, `O`, `I`, `l`, `1`)
 
 **Actions:** Copy to clipboard or insert directly into the active document.
@@ -202,6 +202,15 @@ async function processData(items) {   ⊘ CC:14 COG:18
 | Show Complexity Report | Print a sorted complexity report to the Output panel |
 
 > **Note:** Analysis uses regex-based heuristics (not an AST), so accuracy may vary for unusual code patterns. Files over 10,000 lines are skipped for performance.
+
+---
+
+## Latest Update (v1.0.7)
+
+- Strengthened default password composition requirements (minimum 2 numbers and 2 special characters)
+- Hardened all webviews with CSP + nonce support and stricter message validation
+- Improved Notes and Session JSON parsing/validation for better resilience against malformed files
+- Improved Port Manager reliability with queued scans, PID validation, and process-kill timeouts
 
 ---
 

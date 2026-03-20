@@ -181,7 +181,12 @@ suite('Password Generator Tests', () => {
 
 suite('Password Generation Unit Tests', () => {
 	// Import the password generator for direct testing
-	const { generatePassword } = require('../generators/password');
+	const { generatePassword, DEFAULT_PASSWORD_OPTIONS } = require('../generators/password');
+
+	test('DEFAULT_PASSWORD_OPTIONS enforce stronger minimum composition', () => {
+		assert.strictEqual(DEFAULT_PASSWORD_OPTIONS.minNumbers, 2);
+		assert.strictEqual(DEFAULT_PASSWORD_OPTIONS.minSpecial, 2);
+	});
 
 	test('generatePassword returns string of correct length', () => {
 		const password = generatePassword({
@@ -286,11 +291,30 @@ suite('Password Generation Unit Tests', () => {
 			avoidAmbiguous: false,
 		});
 		const specialCount = (password.match(/[!@#$%^&*]/g) || []).length;
-		// Note: Due to the algorithm placing required chars at random positions,
-		// some may overwrite each other. We verify at least some special chars exist.
 		assert.ok(
-			specialCount >= 1,
-			`Password should have special chars, got ${specialCount}: ${password}`
+			specialCount >= 5,
+			`Password should have at least 5 special chars, got ${specialCount}: ${password}`
+		);
+	});
+
+	test('generatePassword normalizes impossible minimum requirements', () => {
+		const password = generatePassword({
+			length: 4,
+			includeUppercase: true,
+			includeLowercase: true,
+			includeNumbers: true,
+			includeSpecial: true,
+			minNumbers: 4,
+			minSpecial: 4,
+			avoidAmbiguous: false,
+		});
+
+		assert.strictEqual(password.length, 4, 'Password should still respect requested length');
+		const numberCount = (password.match(/[0-9]/g) || []).length;
+		const specialCount = (password.match(/[!@#$%^&*]/g) || []).length;
+		assert.ok(
+			numberCount + specialCount <= 4,
+			'Combined required character categories should fit within requested length'
 		);
 	});
 
@@ -349,6 +373,23 @@ suite('Password Generation Unit Tests', () => {
 			passwords.add(password);
 		}
 		assert.strictEqual(passwords.size, 100, 'All 100 generated passwords should be unique');
+	});
+});
+
+suite('Webview Security Utils Tests', () => {
+	const { createWebviewNonce, getWebviewCspMetaTag } = require('../webviews/security');
+
+	test('createWebviewNonce returns 32-char alphanumeric nonce', () => {
+		const nonce = createWebviewNonce();
+		assert.strictEqual(nonce.length, 32, 'Nonce should have length 32');
+		assert.ok(/^[A-Za-z0-9]+$/.test(nonce), 'Nonce should be alphanumeric');
+	});
+
+	test('getWebviewCspMetaTag includes nonce in script-src', () => {
+		const nonce = 'abc123XYZ';
+		const metaTag = getWebviewCspMetaTag(nonce);
+		assert.ok(metaTag.includes("script-src 'nonce-abc123XYZ'"));
+		assert.ok(metaTag.startsWith('<meta http-equiv="Content-Security-Policy"'));
 	});
 });
 

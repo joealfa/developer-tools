@@ -11,6 +11,7 @@ export class PortService implements vscode.Disposable {
 	private scanner: PortScanner;
 	private cachedPorts: PortInfo[] = [];
 	private autoRefreshTimer: NodeJS.Timeout | undefined;
+	private scanQueue: Promise<PortInfo[]> = Promise.resolve([]);
 
 	private readonly _onDidChangePorts = new vscode.EventEmitter<PortInfo[]>();
 	public readonly onDidChangePorts = this._onDidChangePorts.event;
@@ -23,6 +24,14 @@ export class PortService implements vscode.Disposable {
 	 * Scan for currently listening ports
 	 */
 	async scan(): Promise<PortInfo[]> {
+		this.scanQueue = this.scanQueue.then(
+			() => this.runScan(),
+			() => this.runScan()
+		);
+		return this.scanQueue;
+	}
+
+	private async runScan(): Promise<PortInfo[]> {
 		this.cachedPorts = await this.scanner.scan();
 		this._onDidChangePorts.fire(this.cachedPorts);
 		return this.cachedPorts;
@@ -32,13 +41,17 @@ export class PortService implements vscode.Disposable {
 	 * Kill a process by PID
 	 */
 	async killProcess(pid: number): Promise<boolean> {
+		if (!Number.isInteger(pid) || pid <= 0) {
+			return false;
+		}
+
 		return new Promise((resolve) => {
 			if (process.platform === 'win32') {
-				execFile('taskkill', ['/PID', pid.toString(), '/F'], (error) => {
+				execFile('taskkill', ['/PID', pid.toString(), '/F'], { timeout: 5000 }, (error) => {
 					resolve(!error);
 				});
 			} else {
-				execFile('kill', ['-TERM', pid.toString()], (error) => {
+				execFile('kill', ['-TERM', pid.toString()], { timeout: 5000 }, (error) => {
 					resolve(!error);
 				});
 			}
@@ -67,13 +80,16 @@ export class PortService implements vscode.Disposable {
 	 */
 	startAutoRefresh(): void {
 		this.stopAutoRefresh();
-		const seconds = vscode.workspace
+		const rawSeconds = vscode.workspace
 			.getConfiguration('developer-tools')
 			.get<number>('ports.autoRefreshSeconds', 10);
+		const parsedSeconds = Number(rawSeconds);
 
-		if (seconds <= 0) {
+		if (!Number.isFinite(parsedSeconds) || parsedSeconds <= 0) {
 			return;
 		}
+
+		const seconds = Math.max(1, Math.min(3600, parsedSeconds));
 
 		this.autoRefreshTimer = setInterval(() => {
 			this.scan();

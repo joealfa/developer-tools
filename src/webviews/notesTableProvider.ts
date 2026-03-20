@@ -15,6 +15,7 @@ import {
 } from '../notes';
 import { escapeHtml } from '../utils';
 import { Icons } from './icons';
+import { createWebviewNonce, getWebviewCspMetaTag } from './security';
 import type { NoteEditorProvider } from './noteEditorProvider';
 
 /**
@@ -113,52 +114,86 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 	 * Handle messages from the webview
 	 */
 	private async handleMessage(message: any): Promise<void> {
+        if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+            return;
+        }
+
 		switch (message.command) {
 			case 'navigate':
+                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+                    break;
+                }
 				await this.navigateToNote(message.noteId, false);
 				break;
 
 			case 'openEditor':
+                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+                    break;
+                }
 				await this.navigateToNote(message.noteId, true);
 				break;
 
 			case 'search':
-				this.searchText = message.text;
+                this.searchText = typeof message.text === 'string' ? message.text : '';
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'filterCategory':
-				this.categoryFilter = message.category;
+                if (
+                    message.category === 'all' ||
+                    message.category === 'note' ||
+                    message.category === 'todo' ||
+                    message.category === 'fixme' ||
+                    message.category === 'question'
+                ) {
+                    this.categoryFilter = message.category;
+                }
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'filterStatus':
-				this.statusFilter = message.status;
+                if (
+                    message.status === 'all' ||
+                    message.status === 'active' ||
+                    message.status === 'orphaned'
+                ) {
+                    this.statusFilter = message.status;
+                }
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'groupBy':
-				this.groupBy = message.groupBy;
+                if (
+                    message.groupBy === 'file' ||
+                    message.groupBy === 'category' ||
+                    message.groupBy === 'status' ||
+                    message.groupBy === 'none'
+                ) {
+                    this.groupBy = message.groupBy;
+                }
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'selectNote':
-				if (message.selected) {
+                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+                    break;
+                }
+                if (message.selected === true) {
 					this.selectedNotes.add(message.noteId);
-				} else {
+                } else if (message.selected === false) {
 					this.selectedNotes.delete(message.noteId);
 				}
 				break;
 
 			case 'selectAll': {
 				const notes = this.getFilteredNotes();
-				if (message.selected) {
+                if (message.selected === true) {
 					notes.forEach((n) => this.selectedNotes.add(n.id));
-				} else {
+                } else if (message.selected === false) {
 					this.selectedNotes.clear();
 				}
 				this.refresh();
@@ -171,12 +206,22 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 				break;
 
 			case 'changeCategorySelected':
-				await this.changeCategoryForSelected(message.category);
+                if (
+                    message.category === 'note' ||
+                    message.category === 'todo' ||
+                    message.category === 'fixme' ||
+                    message.category === 'question'
+                ) {
+                    await this.changeCategoryForSelected(message.category);
+                }
 				this.refresh();
 				break;
 
 			case 'deleteNote':
-				await this.deleteNote(message.noteId);
+                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+                    break;
+                }
+                await this.deleteNote(message.noteId);
 				this.refresh();
 				break;
 
@@ -197,14 +242,28 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 
 		// Determine the file URI - handle both absolute and relative paths
 		let fileUri: vscode.Uri;
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return;
+        }
+
 		const isAbsolute = /^[a-zA-Z]:[\\/]|^\//.test(note.filePath);
 		if (isAbsolute) {
-			fileUri = vscode.Uri.file(note.filePath);
+            const normalizedNotePath = note.filePath.replace(/\\/g, '/').toLowerCase();
+            const inWorkspace = workspaceFolders.some((folder) => {
+                const root = folder.uri.fsPath.replace(/\\/g, '/').toLowerCase();
+                return normalizedNotePath === root || normalizedNotePath.startsWith(root + '/');
+            });
+
+            if (!inWorkspace) {
+                vscode.window.showWarningMessage(
+                    'Refusing to open note target outside the current workspace.'
+                );
+                return;
+            }
+
+            fileUri = vscode.Uri.file(note.filePath);
 		} else {
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				return;
-			}
 			fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, note.filePath);
 		}
 
@@ -338,6 +397,8 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 	 * Generate HTML for the webview
 	 */
 	private getHtml(): string {
+        const nonce = createWebviewNonce();
+        const cspMetaTag = getWebviewCspMetaTag(nonce);
 		const notes = this.getFilteredNotes();
 		const groupedNotes = this.groupNotes(notes);
 		const totalCount = this.notesService.count;
@@ -397,6 +458,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        ${cspMetaTag}
     <title>Notes</title>
     <style>
         * {
@@ -695,7 +757,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     <div class="toolbar">
         <input type="text" class="search-box" id="searchBox" placeholder="Search notes..." value="${escapeHtml(this.searchText)}">
         <div class="custom-dropdown" id="categoryFilterDropdown">
-            <div class="custom-dropdown-trigger" onclick="toggleDropdown('categoryFilterDropdown')">
+            <div class="custom-dropdown-trigger" data-dropdown-target="categoryFilterDropdown">
                 ${categoryFilterTrigger}<span class="arrow">▼</span>
             </div>
             <div class="custom-dropdown-menu">
@@ -703,7 +765,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             </div>
         </div>
         <div class="custom-dropdown" id="statusFilterDropdown">
-            <div class="custom-dropdown-trigger" onclick="toggleDropdown('statusFilterDropdown')">
+            <div class="custom-dropdown-trigger" data-dropdown-target="statusFilterDropdown">
                 ${statusFilterTrigger}<span class="arrow">▼</span>
             </div>
             <div class="custom-dropdown-menu">
@@ -725,14 +787,14 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
     <div class="bulk-actions ${this.selectedNotes.size === 0 ? 'hidden' : ''}" id="bulkActions">
         <span id="selectedCount">${this.selectedNotes.size} selected</span>
         <div class="custom-dropdown" id="bulkCategoryDropdown">
-            <div class="custom-dropdown-trigger" onclick="toggleDropdown('bulkCategoryDropdown')">
+            <div class="custom-dropdown-trigger" data-dropdown-target="bulkCategoryDropdown">
                 <span>Change Category...</span><span class="arrow">▼</span>
             </div>
             <div class="custom-dropdown-menu">
                 ${changeCategoryItems}
             </div>
         </div>
-        <button class="btn btn-danger" onclick="deleteSelected()">Delete Selected</button>
+        <button class="btn btn-danger" id="deleteSelectedBtn">Delete Selected</button>
     </div>
 
     <div class="table-container">
@@ -749,7 +811,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 		}
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
         // Search
@@ -760,6 +822,27 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                 vscode.postMessage({ command: 'search', text: e.target.value });
             }, 300);
         });
+
+        function setDropdownTrigger(trigger, item) {
+            const labelNode = item.querySelector('span');
+            const labelText = labelNode ? labelNode.textContent : '';
+
+            trigger.textContent = '';
+
+            const sourceIcon = item.querySelector('svg');
+            if (sourceIcon) {
+                trigger.appendChild(sourceIcon.cloneNode(true));
+            }
+
+            const label = document.createElement('span');
+            label.textContent = labelText;
+            trigger.appendChild(label);
+
+            const arrow = document.createElement('span');
+            arrow.className = 'arrow';
+            arrow.textContent = '▼';
+            trigger.appendChild(arrow);
+        }
 
         // Custom dropdown toggle
         function toggleDropdown(dropdownId) {
@@ -783,14 +866,25 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
         });
 
+        document.querySelectorAll('.custom-dropdown-trigger[data-dropdown-target]').forEach(trigger => {
+            trigger.addEventListener('click', (e) => {
+                const targetId = e.currentTarget.dataset.dropdownTarget;
+                if (targetId) {
+                    toggleDropdown(targetId);
+                }
+            });
+        });
+
+        document.getElementById('deleteSelectedBtn').addEventListener('click', () => {
+            deleteSelected();
+        });
+
         // Category filter dropdown items
         document.querySelectorAll('#categoryFilterDropdown .custom-dropdown-item').forEach(item => {
             item.addEventListener('click', function() {
                 const value = this.dataset.value;
                 const trigger = document.querySelector('#categoryFilterDropdown .custom-dropdown-trigger');
-                const svgHtml = this.querySelector('svg') ? this.querySelector('svg').outerHTML : '';
-                const label = this.querySelector('span').textContent;
-                trigger.innerHTML = (svgHtml ? svgHtml : '') + '<span>' + label + '</span><span class="arrow">▼</span>';
+                setDropdownTrigger(trigger, this);
                 document.querySelectorAll('#categoryFilterDropdown .custom-dropdown-item').forEach(i => i.classList.remove('selected'));
                 this.classList.add('selected');
                 document.getElementById('categoryFilterDropdown').classList.remove('open');
@@ -812,9 +906,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             item.addEventListener('click', function() {
                 const value = this.dataset.value;
                 const trigger = document.querySelector('#statusFilterDropdown .custom-dropdown-trigger');
-                const svgHtml = this.querySelector('svg') ? this.querySelector('svg').outerHTML : '';
-                const label = this.querySelector('span').textContent;
-                trigger.innerHTML = (svgHtml ? svgHtml : '') + '<span>' + label + '</span><span class="arrow">▼</span>';
+                setDropdownTrigger(trigger, this);
                 document.querySelectorAll('#statusFilterDropdown .custom-dropdown-item').forEach(i => i.classList.remove('selected'));
                 this.classList.add('selected');
                 document.getElementById('statusFilterDropdown').classList.remove('open');
@@ -883,8 +975,52 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
             
             toggle.textContent = isHidden ? '▼' : '▶';
         }
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+
+            const groupToggle = target.closest('.group-toggle[data-group-id]');
+            if (groupToggle) {
+                event.stopPropagation();
+                toggleGroup(groupToggle.dataset.groupId);
+                return;
+            }
+
+            const deleteBtn = target.closest('.delete-note-btn[data-note-id]');
+            if (deleteBtn) {
+                event.stopPropagation();
+                deleteNote(deleteBtn.dataset.noteId, event);
+                return;
+            }
+
+            const checkboxCol = target.closest('.note-checkbox-col');
+            if (checkboxCol) {
+                event.stopPropagation();
+                return;
+            }
+
+            const row = target.closest('.note-row[data-note-id]');
+            if (row) {
+                navigateToNote(row.dataset.noteId);
+            }
+        });
+
+        document.addEventListener('dblclick', (event) => {
+            const row = event.target.closest('.note-row[data-note-id]');
+            if (!row) {
+                return;
+            }
+            event.preventDefault();
+            openNoteEditor(row.dataset.noteId);
+        });
+
+        document.querySelectorAll('.note-checkbox[data-note-id]').forEach((checkbox) => {
+            checkbox.addEventListener('change', (event) => {
+                const input = event.currentTarget;
+                toggleSelection(input.dataset.noteId, input.checked);
+            });
+        });
     </script>
-</body>
 </html>`;
 	}
 
@@ -903,7 +1039,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 			if (this.groupBy !== 'none') {
 				rows.push(`
                 <div class="group-header">
-                    <span class="group-toggle" onclick="toggleGroup('${groupId}')" id="toggle-${groupId}">▼</span>
+                    <span class="group-toggle" data-group-id="${groupId}" id="toggle-${groupId}">▼</span>
                     ${escapeHtml(groupName)} (${notes.length})
                 </div>
                 `);
@@ -916,11 +1052,12 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 				const createdDate = new Date(note.createdAt).toLocaleDateString();
 
 				rows.push(`
-                <div class="note-row" data-group="${groupId}" onclick="navigateToNote('${note.id}')" ondblclick="openNoteEditor('${note.id}')">
-                    <div class="note-checkbox-col" onclick="event.stopPropagation()">
+                <div class="note-row" data-group="${groupId}" data-note-id="${note.id}">
+                    <div class="note-checkbox-col">
                         <input type="checkbox" class="note-checkbox" 
+                               data-note-id="${note.id}"
                                ${isSelected ? 'checked' : ''} 
-                               onchange="toggleSelection('${note.id}', this.checked)">
+                               >
                     </div>
                     <div class="note-status-col">
                         <span class="status-icon ${isOrphaned ? 'status-orphaned' : ''}" title="${isOrphaned ? 'Orphaned' : 'Active'}">
@@ -944,7 +1081,7 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
                         <div class="note-preview-row" title="${escapeHtml(note.text)}">${escapeHtml(note.text.length > 90 ? note.text.substring(0, 90) + '\u2026' : note.text)}</div>
                     </div>
                     <div class="note-actions-col">
-                        <button class="action-btn danger" onclick="deleteNote('${note.id}', event)" title="Delete">${Icons.trash2.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"')}</button>
+                        <button class="action-btn danger delete-note-btn" data-note-id="${note.id}" title="Delete">${Icons.trash2.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"')}</button>
                     </div>
                 </div>
                 `);
