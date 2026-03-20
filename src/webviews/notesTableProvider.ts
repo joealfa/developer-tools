@@ -114,86 +114,86 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 	 * Handle messages from the webview
 	 */
 	private async handleMessage(message: any): Promise<void> {
-        if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
-            return;
-        }
+		if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+			return;
+		}
 
 		switch (message.command) {
 			case 'navigate':
-                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-                    break;
-                }
+				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+					break;
+				}
 				await this.navigateToNote(message.noteId, false);
 				break;
 
 			case 'openEditor':
-                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-                    break;
-                }
+				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+					break;
+				}
 				await this.navigateToNote(message.noteId, true);
 				break;
 
 			case 'search':
-                this.searchText = typeof message.text === 'string' ? message.text : '';
+				this.searchText = typeof message.text === 'string' ? message.text : '';
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'filterCategory':
-                if (
-                    message.category === 'all' ||
-                    message.category === 'note' ||
-                    message.category === 'todo' ||
-                    message.category === 'fixme' ||
-                    message.category === 'question'
-                ) {
-                    this.categoryFilter = message.category;
-                }
+				if (
+					message.category === 'all' ||
+					message.category === 'note' ||
+					message.category === 'todo' ||
+					message.category === 'fixme' ||
+					message.category === 'question'
+				) {
+					this.categoryFilter = message.category;
+				}
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'filterStatus':
-                if (
-                    message.status === 'all' ||
-                    message.status === 'active' ||
-                    message.status === 'orphaned'
-                ) {
-                    this.statusFilter = message.status;
-                }
+				if (
+					message.status === 'all' ||
+					message.status === 'active' ||
+					message.status === 'orphaned'
+				) {
+					this.statusFilter = message.status;
+				}
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'groupBy':
-                if (
-                    message.groupBy === 'file' ||
-                    message.groupBy === 'category' ||
-                    message.groupBy === 'status' ||
-                    message.groupBy === 'none'
-                ) {
-                    this.groupBy = message.groupBy;
-                }
+				if (
+					message.groupBy === 'file' ||
+					message.groupBy === 'category' ||
+					message.groupBy === 'status' ||
+					message.groupBy === 'none'
+				) {
+					this.groupBy = message.groupBy;
+				}
 				this.selectedNotes.clear();
 				this.refresh();
 				break;
 
 			case 'selectNote':
-                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-                    break;
-                }
-                if (message.selected === true) {
+				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+					break;
+				}
+				if (message.selected === true) {
 					this.selectedNotes.add(message.noteId);
-                } else if (message.selected === false) {
+				} else if (message.selected === false) {
 					this.selectedNotes.delete(message.noteId);
 				}
 				break;
 
 			case 'selectAll': {
 				const notes = this.getFilteredNotes();
-                if (message.selected === true) {
+				if (message.selected === true) {
 					notes.forEach((n) => this.selectedNotes.add(n.id));
-                } else if (message.selected === false) {
+				} else if (message.selected === false) {
 					this.selectedNotes.clear();
 				}
 				this.refresh();
@@ -206,22 +206,22 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 				break;
 
 			case 'changeCategorySelected':
-                if (
-                    message.category === 'note' ||
-                    message.category === 'todo' ||
-                    message.category === 'fixme' ||
-                    message.category === 'question'
-                ) {
-                    await this.changeCategoryForSelected(message.category);
-                }
+				if (
+					message.category === 'note' ||
+					message.category === 'todo' ||
+					message.category === 'fixme' ||
+					message.category === 'question'
+				) {
+					await this.changeCategoryForSelected(message.category);
+				}
 				this.refresh();
 				break;
 
 			case 'deleteNote':
-                if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-                    break;
-                }
-                await this.deleteNote(message.noteId);
+				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
+					break;
+				}
+				await this.deleteNote(message.noteId);
 				this.refresh();
 				break;
 
@@ -242,27 +242,27 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 
 		// Determine the file URI - handle both absolute and relative paths
 		let fileUri: vscode.Uri;
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            return;
-        }
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return;
+		}
 
 		const isAbsolute = /^[a-zA-Z]:[\\/]|^\//.test(note.filePath);
 		if (isAbsolute) {
-            const normalizedNotePath = note.filePath.replace(/\\/g, '/').toLowerCase();
-            const inWorkspace = workspaceFolders.some((folder) => {
-                const root = folder.uri.fsPath.replace(/\\/g, '/').toLowerCase();
-                return normalizedNotePath === root || normalizedNotePath.startsWith(root + '/');
-            });
+			const normalizedNotePath = note.filePath.replace(/\\/g, '/').toLowerCase();
+			const inWorkspace = workspaceFolders.some((folder) => {
+				const root = folder.uri.fsPath.replace(/\\/g, '/').toLowerCase();
+				return normalizedNotePath === root || normalizedNotePath.startsWith(root + '/');
+			});
 
-            if (!inWorkspace) {
-                vscode.window.showWarningMessage(
-                    'Refusing to open note target outside the current workspace.'
-                );
-                return;
-            }
+			if (!inWorkspace) {
+				vscode.window.showWarningMessage(
+					'Refusing to open note target outside the current workspace.'
+				);
+				return;
+			}
 
-            fileUri = vscode.Uri.file(note.filePath);
+			fileUri = vscode.Uri.file(note.filePath);
 		} else {
 			fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, note.filePath);
 		}
@@ -397,8 +397,8 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 	 * Generate HTML for the webview
 	 */
 	private getHtml(): string {
-        const nonce = createWebviewNonce();
-        const cspMetaTag = getWebviewCspMetaTag(nonce);
+		const nonce = createWebviewNonce();
+		const cspMetaTag = getWebviewCspMetaTag(nonce);
 		const notes = this.getFilteredNotes();
 		const groupedNotes = this.groupNotes(notes);
 		const totalCount = this.notesService.count;

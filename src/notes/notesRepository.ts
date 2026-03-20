@@ -246,7 +246,11 @@ export class NotesRepository {
 	}
 
 	private isValidStorageData(value: unknown): value is NotesStorageData {
-		if (!this.isRecord(value) || typeof value.version !== 'number' || !Array.isArray(value.notes)) {
+		if (
+			!this.isRecord(value) ||
+			typeof value.version !== 'number' ||
+			!Array.isArray(value.notes)
+		) {
 			return false;
 		}
 

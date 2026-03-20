@@ -42,48 +42,52 @@ export class PortManagerProvider implements vscode.WebviewViewProvider, vscode.D
 
 		webviewView.webview.onDidReceiveMessage(
 			async (message) => {
-                if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
-                    return;
-                }
+				if (
+					!message ||
+					typeof message !== 'object' ||
+					typeof message.command !== 'string'
+				) {
+					return;
+				}
 
-                switch (message.command) {
-                    case 'refresh':
-                        await this.portService.scan();
-                        break;
-                    case 'kill': {
-                        if (!Number.isInteger(message.pid) || message.pid <= 0) {
-                            break;
-                        }
-                        const success = await this.portService.killProcess(message.pid);
-                        if (success) {
-                            vscode.window.showInformationMessage(
-                                `Process ${message.pid} terminated.`
-                            );
-                            await this.portService.scan();
-                        } else {
-                            vscode.window.showErrorMessage(
-                                `Failed to kill process ${message.pid}. You may need elevated permissions.`
-                            );
-                        }
-                        break;
-                    }
-                    case 'toggle-auto-refresh':
-                        if (message.enabled === true) {
-                            this.portService.startAutoRefresh();
-                        } else if (message.enabled === false) {
-                            this.portService.stopAutoRefresh();
-                        }
-                        break;
-                    case 'filter': {
-                        const filterText = typeof message.text === 'string' ? message.text : '';
-                        const filtered = this.portService.getFilteredPorts(filterText);
-                        webviewView.webview.postMessage({
-                            command: 'ports-updated',
-                            ports: this.sanitizePorts(filtered),
-                        });
-                        break;
-                    }
-                }
+				switch (message.command) {
+					case 'refresh':
+						await this.portService.scan();
+						break;
+					case 'kill': {
+						if (!Number.isInteger(message.pid) || message.pid <= 0) {
+							break;
+						}
+						const success = await this.portService.killProcess(message.pid);
+						if (success) {
+							vscode.window.showInformationMessage(
+								`Process ${message.pid} terminated.`
+							);
+							await this.portService.scan();
+						} else {
+							vscode.window.showErrorMessage(
+								`Failed to kill process ${message.pid}. You may need elevated permissions.`
+							);
+						}
+						break;
+					}
+					case 'toggle-auto-refresh':
+						if (message.enabled === true) {
+							this.portService.startAutoRefresh();
+						} else if (message.enabled === false) {
+							this.portService.stopAutoRefresh();
+						}
+						break;
+					case 'filter': {
+						const filterText = typeof message.text === 'string' ? message.text : '';
+						const filtered = this.portService.getFilteredPorts(filterText);
+						webviewView.webview.postMessage({
+							command: 'ports-updated',
+							ports: this.sanitizePorts(filtered),
+						});
+						break;
+					}
+				}
 			},
 			undefined,
 			this.context.subscriptions

@@ -266,7 +266,9 @@ export class SessionRepository {
 			typeof value.id !== 'string' ||
 			typeof value.startedAt !== 'number' ||
 			!(value.endedAt === null || typeof value.endedAt === 'number') ||
-			(value.status !== 'active' && value.status !== 'completed' && value.status !== 'recovered') ||
+			(value.status !== 'active' &&
+				value.status !== 'completed' &&
+				value.status !== 'recovered') ||
 			typeof value.totalEstimatedTimeMs !== 'number' ||
 			!Array.isArray(value.files) ||
 			!Array.isArray(value.events)

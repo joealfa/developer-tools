@@ -28,7 +28,11 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 		// Handle messages from the webview
 		webviewView.webview.onDidReceiveMessage(
 			(message) => {
-				if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+				if (
+					!message ||
+					typeof message !== 'object' ||
+					typeof message.command !== 'string'
+				) {
 					return;
 				}
 
@@ -44,14 +48,16 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 					}
 
 					case 'copy': {
-						const passwordToCopy = typeof message.password === 'string' ? message.password : '';
+						const passwordToCopy =
+							typeof message.password === 'string' ? message.password : '';
 						vscode.env.clipboard.writeText(passwordToCopy);
 						vscode.window.showInformationMessage('Password copied to clipboard!');
 						break;
 					}
 
 					case 'insert': {
-						const passwordToInsert = typeof message.password === 'string' ? message.password : '';
+						const passwordToInsert =
+							typeof message.password === 'string' ? message.password : '';
 						const editor = vscode.window.activeTextEditor;
 						if (editor) {
 							insertTextIntoEditor(editor, passwordToInsert);
@@ -367,8 +373,18 @@ export class PasswordGeneratorProvider implements vscode.WebviewViewProvider {
 			DEFAULT_PASSWORD_OPTIONS.includeSpecial
 		);
 
-		const minNumbers = this.clampNumber(source.minNumbers, 0, length, DEFAULT_PASSWORD_OPTIONS.minNumbers);
-		const minSpecial = this.clampNumber(source.minSpecial, 0, length, DEFAULT_PASSWORD_OPTIONS.minSpecial);
+		const minNumbers = this.clampNumber(
+			source.minNumbers,
+			0,
+			length,
+			DEFAULT_PASSWORD_OPTIONS.minNumbers
+		);
+		const minSpecial = this.clampNumber(
+			source.minSpecial,
+			0,
+			length,
+			DEFAULT_PASSWORD_OPTIONS.minSpecial
+		);
 		const avoidAmbiguous = this.asBoolean(
 			source.avoidAmbiguous,
 			DEFAULT_PASSWORD_OPTIONS.avoidAmbiguous

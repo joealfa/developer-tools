@@ -654,7 +654,7 @@ export class NoteEditorProvider implements vscode.WebviewViewProvider {
 <body>
     ${
 		this.isFileFocused
-				? `<div class="location-info" title="${escapeHtml(locationInfo.fullPath)}">
+			? `<div class="location-info" title="${escapeHtml(locationInfo.fullPath)}">
 			<div class="location-top-row">
 				<div class="location-file">${escapeHtml(locationInfo.fileName)}</div>
 				<div class="location-line">Line ${this.currentLineNumber + 1}</div>

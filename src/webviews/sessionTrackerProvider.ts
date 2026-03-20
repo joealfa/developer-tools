@@ -43,9 +43,13 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 
 		webviewView.webview.onDidReceiveMessage(
 			async (message) => {
-                if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
-                    return;
-                }
+				if (
+					!message ||
+					typeof message !== 'object' ||
+					typeof message.command !== 'string'
+				) {
+					return;
+				}
 
 				switch (message.command) {
 					case 'start':
@@ -76,10 +80,10 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 						await this.sendHistory();
 						break;
 					case 'view-session': {
-                        if (typeof message.id !== 'string' || message.id.length === 0) {
-                            break;
-                        }
-                        const session = await this.sessionService.loadHistorySession(message.id);
+						if (typeof message.id !== 'string' || message.id.length === 0) {
+							break;
+						}
+						const session = await this.sessionService.loadHistorySession(message.id);
 						if (session) {
 							this.view?.webview.postMessage({
 								command: 'show-history-session',
@@ -89,9 +93,9 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 						break;
 					}
 					case 'delete-session':
-                        if (typeof message.id !== 'string' || message.id.length === 0) {
-                            break;
-                        }
+						if (typeof message.id !== 'string' || message.id.length === 0) {
+							break;
+						}
 						await this.sessionService.deleteHistorySession(message.id);
 						await this.sendHistory();
 						break;
@@ -100,12 +104,12 @@ export class SessionTrackerProvider implements vscode.WebviewViewProvider, vscod
 						await this.sendHistory();
 						break;
 					case 'export-history-session': {
-                        if (typeof message.id !== 'string' || message.id.length === 0) {
-                            break;
-                        }
-                        if (message.format !== 'markdown' && message.format !== 'json') {
-                            break;
-                        }
+						if (typeof message.id !== 'string' || message.id.length === 0) {
+							break;
+						}
+						if (message.format !== 'markdown' && message.format !== 'json') {
+							break;
+						}
 						const exported = await this.sessionService.exportSession(
 							message.id,
 							message.format

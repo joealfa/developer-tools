@@ -37,7 +37,9 @@ export function getTrackableDocumentPath(document: vscode.TextDocument): string 
 	}
 
 	if (scheme === 'file' || scheme === 'vscode-userdata') {
-		return getRelativePath(document.uri) ?? vscode.workspace.asRelativePath(document.uri, false);
+		return (
+			getRelativePath(document.uri) ?? vscode.workspace.asRelativePath(document.uri, false)
+		);
 	}
 
 	return null;
