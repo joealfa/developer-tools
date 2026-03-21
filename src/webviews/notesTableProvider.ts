@@ -4,19 +4,10 @@
  */
 
 import * as vscode from 'vscode';
-import {
-	NotesService,
-	Note,
-	NoteCategory,
-	NoteStatus,
-	NotesGroupBy,
-	CATEGORY_CONFIG,
-	STATUS_CONFIG,
-} from '../notes';
-import { escapeHtml } from '../utils';
-import { Icons } from './icons';
-import { createWebviewNonce, getWebviewCspMetaTag } from './security';
+import { NotesService, Note, NoteCategory } from '../notes';
+import { createWebviewNonce, getWebviewCspMetaTagWithScript, getWebviewScriptUri } from './security';
 import type { NoteEditorProvider } from './noteEditorProvider';
+import notesTableHtml from './templates/notesTable.html';
 
 /**
  * WebviewViewProvider for the notes table in the bottom panel
@@ -30,36 +21,15 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = [];
 	private noteEditorProvider: NoteEditorProvider | null = null;
 
-	// Current filter/group state
-	private searchText: string = '';
-	private categoryFilter: NoteCategory | 'all' = 'all';
-	private statusFilter: NoteStatus | 'all' = 'all';
-	private groupBy: NotesGroupBy = 'file';
-	private selectedNotes: Set<string> = new Set();
-
 	constructor(context: vscode.ExtensionContext, notesService: NotesService) {
 		this.context = context;
 		this.notesService = notesService;
 
-		// Listen to notes changes
 		this.disposables.push(
 			this.notesService.onDidChangeNotes(() => {
-				this.pruneSelection();
 				this.refresh();
 			})
 		);
-	}
-
-	private pruneSelection(): void {
-		if (this.selectedNotes.size === 0) {
-			return;
-		}
-
-		for (const id of Array.from(this.selectedNotes)) {
-			if (!this.notesService.getById(id)) {
-				this.selectedNotes.delete(id);
-			}
-		}
 	}
 
 	/**
@@ -84,150 +54,78 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 			localResourceRoots: [this.context.extensionUri],
 		};
 
-		webviewView.webview.html = this.getHtml();
+		webviewView.webview.html = this.getHtml(webviewView.webview);
 
-		// Handle messages from the webview
 		webviewView.webview.onDidReceiveMessage(
 			this.handleMessage.bind(this),
 			null,
 			this.disposables
 		);
 
-		// Refresh when view becomes visible
 		webviewView.onDidChangeVisibility(() => {
 			if (webviewView.visible) {
 				this.refresh();
 			}
 		});
+
+		this.refresh();
 	}
 
 	/**
-	 * Refresh the view
+	 * Push the full notes list to the webview
 	 */
 	refresh(): void {
-		if (this.view) {
-			this.view.webview.html = this.getHtml();
+		if (!this.view) {
+			return;
 		}
+		const notes = this.notesService.getAll();
+		this.view.webview.postMessage({
+			command: 'notes-updated',
+			notes: notes.map((n) => this.serializeNote(n)),
+			totalCount: this.notesService.count,
+		});
 	}
 
 	/**
 	 * Handle messages from the webview
 	 */
-	private async handleMessage(message: any): Promise<void> {
-		if (!message || typeof message !== 'object' || typeof message.command !== 'string') {
+	private async handleMessage(message: unknown): Promise<void> {
+		if (!message || typeof message !== 'object' || typeof (message as Record<string, unknown>).command !== 'string') {
 			return;
 		}
 
-		switch (message.command) {
+		const msg = message as Record<string, unknown>;
+
+		switch (msg.command) {
 			case 'navigate':
-				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-					break;
-				}
-				await this.navigateToNote(message.noteId, false);
+				if (typeof msg.noteId !== 'string' || msg.noteId.length === 0) break;
+				await this.navigateToNote(msg.noteId, false);
 				break;
 
 			case 'openEditor':
-				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-					break;
-				}
-				await this.navigateToNote(message.noteId, true);
-				break;
-
-			case 'search':
-				this.searchText = typeof message.text === 'string' ? message.text : '';
-				this.selectedNotes.clear();
-				this.refresh();
-				break;
-
-			case 'filterCategory':
-				if (
-					message.category === 'all' ||
-					message.category === 'note' ||
-					message.category === 'todo' ||
-					message.category === 'fixme' ||
-					message.category === 'question'
-				) {
-					this.categoryFilter = message.category;
-				}
-				this.selectedNotes.clear();
-				this.refresh();
-				break;
-
-			case 'filterStatus':
-				if (
-					message.status === 'all' ||
-					message.status === 'active' ||
-					message.status === 'orphaned'
-				) {
-					this.statusFilter = message.status;
-				}
-				this.selectedNotes.clear();
-				this.refresh();
-				break;
-
-			case 'groupBy':
-				if (
-					message.groupBy === 'file' ||
-					message.groupBy === 'category' ||
-					message.groupBy === 'status' ||
-					message.groupBy === 'none'
-				) {
-					this.groupBy = message.groupBy;
-				}
-				this.selectedNotes.clear();
-				this.refresh();
-				break;
-
-			case 'selectNote':
-				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-					break;
-				}
-				if (message.selected === true) {
-					this.selectedNotes.add(message.noteId);
-				} else if (message.selected === false) {
-					this.selectedNotes.delete(message.noteId);
-				}
-				break;
-
-			case 'selectAll': {
-				const notes = this.getFilteredNotes();
-				if (message.selected === true) {
-					notes.forEach((n) => this.selectedNotes.add(n.id));
-				} else if (message.selected === false) {
-					this.selectedNotes.clear();
-				}
-				this.refresh();
-				break;
-			}
-
-			case 'deleteSelected':
-				await this.deleteSelectedNotes();
-				this.refresh();
-				break;
-
-			case 'changeCategorySelected':
-				if (
-					message.category === 'note' ||
-					message.category === 'todo' ||
-					message.category === 'fixme' ||
-					message.category === 'question'
-				) {
-					await this.changeCategoryForSelected(message.category);
-				}
-				this.refresh();
+				if (typeof msg.noteId !== 'string' || msg.noteId.length === 0) break;
+				await this.navigateToNote(msg.noteId, true);
 				break;
 
 			case 'deleteNote':
-				if (typeof message.noteId !== 'string' || message.noteId.length === 0) {
-					break;
-				}
-				await this.deleteNote(message.noteId);
-				this.refresh();
+				if (typeof msg.noteId !== 'string' || msg.noteId.length === 0) break;
+				await this.deleteNote(msg.noteId);
 				break;
 
-			case 'refresh':
-				this.refresh();
+			case 'deleteSelected': {
+				if (!Array.isArray(msg.ids)) break;
+				const ids = (msg.ids as unknown[]).filter((id): id is string => typeof id === 'string');
+				await this.deleteSelectedNotes(ids);
 				break;
+			}
+
+			case 'changeCategorySelected': {
+				if (!this.isValidCategory(msg.category)) break;
+				if (!Array.isArray(msg.ids)) break;
+				const ids = (msg.ids as unknown[]).filter((id): id is string => typeof id === 'string');
+				await this.changeCategoryForSelected(ids, msg.category as NoteCategory);
+				break;
+			}
 		}
 	}
 
@@ -240,7 +138,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
-		// Determine the file URI - handle both absolute and relative paths
 		let fileUri: vscode.Uri;
 		const workspaceFolders = vscode.workspace.workspaceFolders;
 		if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -274,7 +171,6 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 				preserveFocus: false,
 			});
 
-			// Navigate to the line
 			const position = new vscode.Position(note.lineNumber, 0);
 			editor.selection = new vscode.Selection(position, position);
 			editor.revealRange(
@@ -282,11 +178,10 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 				vscode.TextEditorRevealType.InCenter
 			);
 
-			// Show the note editor in secondary sidebar only on double-click
 			if (showEditor && this.noteEditorProvider) {
 				await this.noteEditorProvider.showForLine(note.filePath, note.lineNumber);
 			}
-		} catch (error) {
+		} catch {
 			vscode.window.showErrorMessage(`Could not open file: ${note.filePath}`);
 		}
 	}
@@ -303,845 +198,66 @@ export class NotesTableProvider implements vscode.WebviewViewProvider {
 
 		if (confirmed === 'Delete') {
 			await this.notesService.delete(noteId);
-			this.selectedNotes.delete(noteId);
 		}
 	}
 
 	/**
-	 * Delete all selected notes
+	 * Delete a list of selected notes
 	 */
-	private async deleteSelectedNotes(): Promise<void> {
-		if (this.selectedNotes.size === 0) {
+	private async deleteSelectedNotes(ids: string[]): Promise<void> {
+		if (ids.length === 0) {
 			return;
 		}
 
 		const confirmed = await vscode.window.showWarningMessage(
-			`Are you sure you want to delete ${this.selectedNotes.size} note(s)?`,
+			`Are you sure you want to delete ${ids.length} note(s)?`,
 			{ modal: true },
 			'Delete'
 		);
 
 		if (confirmed === 'Delete') {
-			await this.notesService.bulkDelete(Array.from(this.selectedNotes));
-			this.selectedNotes.clear();
+			await this.notesService.bulkDelete(ids);
 		}
 	}
 
 	/**
-	 * Change category for all selected notes
+	 * Change category for a list of notes
 	 */
-	private async changeCategoryForSelected(category: NoteCategory): Promise<void> {
-		if (this.selectedNotes.size === 0) {
+	private async changeCategoryForSelected(ids: string[], category: NoteCategory): Promise<void> {
+		if (ids.length === 0) {
 			return;
 		}
 
-		const updates = Array.from(this.selectedNotes).map((id) => ({
-			id,
-			options: { category },
-		}));
-
+		const updates = ids.map((id) => ({ id, options: { category } }));
 		await this.notesService.bulkUpdate(updates);
-		vscode.window.showInformationMessage(
-			`Updated category for ${this.selectedNotes.size} note(s)`
-		);
+		vscode.window.showInformationMessage(`Updated category for ${ids.length} note(s)`);
 	}
 
-	/**
-	 * Get filtered notes based on current filters
-	 */
-	private getFilteredNotes(): Note[] {
-		return this.notesService.getFiltered({
-			category: this.categoryFilter === 'all' ? undefined : this.categoryFilter,
-			status: this.statusFilter === 'all' ? undefined : this.statusFilter,
-			searchText: this.searchText || undefined,
-		});
+	private isValidCategory(value: unknown): boolean {
+		return value === 'note' || value === 'todo' || value === 'fixme' || value === 'question';
 	}
 
-	/**
-	 * Group notes by the current groupBy setting
-	 */
-	private groupNotes(notes: Note[]): Map<string, Note[]> {
-		const groups = new Map<string, Note[]>();
-
-		if (this.groupBy === 'none') {
-			groups.set('All Notes', notes);
-			return groups;
-		}
-
-		for (const note of notes) {
-			let key: string;
-
-			switch (this.groupBy) {
-				case 'file':
-					key = note.filePath;
-					break;
-				case 'category':
-					key = CATEGORY_CONFIG[note.category].label;
-					break;
-				case 'status':
-					key = STATUS_CONFIG[note.status].label;
-					break;
-				default:
-					key = 'All Notes';
-			}
-
-			const existing = groups.get(key) ?? [];
-			existing.push(note);
-			groups.set(key, existing);
-		}
-
-		return groups;
+	private serializeNote(note: Note) {
+		return {
+			id: note.id,
+			filePath: note.filePath,
+			lineNumber: note.lineNumber,
+			text: note.text,
+			category: note.category,
+			status: note.status,
+			createdAt: note.createdAt,
+		};
 	}
 
-	/**
-	 * Generate HTML for the webview
-	 */
-	private getHtml(): string {
+	private getHtml(webview: vscode.Webview): string {
 		const nonce = createWebviewNonce();
-		const cspMetaTag = getWebviewCspMetaTag(nonce);
-		const notes = this.getFilteredNotes();
-		const groupedNotes = this.groupNotes(notes);
-		const totalCount = this.notesService.count;
-		const filteredCount = notes.length;
-		// Category filter custom dropdown items
-		const categoryFilterItems = [
-			`<div class="custom-dropdown-item ${this.categoryFilter === 'all' ? 'selected' : ''}" data-value="all"><span>All Categories</span></div>`,
-			...Object.entries(CATEGORY_CONFIG).map(
-				([key, config]) =>
-					`<div class="custom-dropdown-item ${this.categoryFilter === key ? 'selected' : ''}" data-value="${key}">${this.getCategoryIconDropdown(key as NoteCategory)}<span>${config.label}</span></div>`
-			),
-		].join('');
+		const scriptUri = getWebviewScriptUri(webview, this.context.extensionUri, 'notesTable.js');
+		const cspMetaTag = getWebviewCspMetaTagWithScript(nonce, webview);
 
-		const categoryFilterTrigger =
-			this.categoryFilter === 'all'
-				? `<span>All Categories</span>`
-				: `${this.getCategoryIconDropdown(this.categoryFilter as NoteCategory)}<span>${CATEGORY_CONFIG[this.categoryFilter as NoteCategory].label}</span>`;
-
-		// Bulk change category dropdown items
-		const changeCategoryItems = Object.entries(CATEGORY_CONFIG)
-			.map(
-				([key, config]) =>
-					`<div class="custom-dropdown-item" data-value="${key}">${this.getCategoryIconDropdown(key as NoteCategory)}<span>${config.label}</span></div>`
-			)
-			.join('');
-
-		// Status filter custom dropdown items
-		const statusFilterItems = [
-			`<div class="custom-dropdown-item ${this.statusFilter === 'all' ? 'selected' : ''}" data-value="all"><span>All Status</span></div>`,
-			...Object.entries(STATUS_CONFIG).map(
-				([key, config]) =>
-					`<div class="custom-dropdown-item ${this.statusFilter === key ? 'selected' : ''}" data-value="${key}">${this.getStatusIconDropdown(key as NoteStatus)}<span>${config.label}</span></div>`
-			),
-		].join('');
-
-		const statusFilterTrigger =
-			this.statusFilter === 'all'
-				? `<span>All Status</span>`
-				: `${this.getStatusIconDropdown(this.statusFilter as NoteStatus)}<span>${STATUS_CONFIG[this.statusFilter as NoteStatus].label}</span>`;
-
-		const groupByOptions = [
-			{ value: 'file', label: 'File' },
-			{ value: 'category', label: 'Category' },
-			{ value: 'status', label: 'Status' },
-			{ value: 'none', label: 'None' },
-		]
-			.map(
-				(opt) =>
-					`<option value="${opt.value}" ${this.groupBy === opt.value ? 'selected' : ''}>${opt.label}</option>`
-			)
-			.join('');
-
-		const tableHtml = this.generateTableHtml(groupedNotes);
-
-		return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        ${cspMetaTag}
-    <title>Notes</title>
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-        body {
-            font-family: var(--vscode-font-family);
-            font-size: 12px;
-            padding: 8px;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-panel-background);
-            margin: 0;
-        }
-        .toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 8px;
-            padding: 8px;
-            background-color: var(--vscode-editor-background);
-            border-radius: 4px;
-        }
-        .search-box {
-            flex: 1;
-            min-width: 150px;
-            padding: 4px 8px;
-            background-color: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            color: var(--vscode-input-foreground);
-            border-radius: 4px;
-            font-size: 12px;
-        }
-        .search-box:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
-        }
-        .filter-select {
-            padding: 4px 8px;
-            background-color: var(--vscode-dropdown-background);
-            border: 1px solid var(--vscode-dropdown-border);
-            color: var(--vscode-dropdown-foreground);
-            border-radius: 4px;
-            font-size: 11px;
-        }
-        .stats {
-            display: flex;
-            gap: 12px;
-            font-size: 11px;
-            color: var(--vscode-descriptionForeground);
-            padding: 4px 0;
-        }
-        .storage-indicator {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .storage-bar {
-            width: 40px;
-            height: 6px;
-            background-color: var(--vscode-progressBar-background);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        .storage-fill {
-            height: 100%;
-            background-color: var(--vscode-progressBar-background);
-            transition: width 0.3s;
-        }
-        .storage-fill.warning { background-color: var(--vscode-inputValidation-warningBackground); }
-        .storage-fill.critical { background-color: var(--vscode-inputValidation-errorBackground); }
-        .bulk-actions {
-            display: flex;
-            gap: 8px;
-            padding: 8px;
-            background-color: var(--vscode-editor-background);
-            border-radius: 4px;
-            margin-bottom: 8px;
-            align-items: center;
-        }
-        .bulk-actions.hidden {
-            display: none;
-        }
-        .btn {
-            padding: 4px 8px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .btn-danger {
-            background-color: var(--vscode-inputValidation-errorBackground);
-            color: var(--vscode-inputValidation-errorForeground);
-        }
-        .btn-secondary {
-            background-color: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        .notes-container {
-            padding: 4px;
-        }
-        .note-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px;
-            border-bottom: 1px solid var(--vscode-widget-border);
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .note-row:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        .note-checkbox-col {
-            flex-shrink: 0;
-        }
-        .note-status-col {
-            flex-shrink: 0;
-        }
-        .note-content-col {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .note-first-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .note-second-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 10px;
-            color: var(--vscode-descriptionForeground);
-        }
-        .note-actions-col {
-            flex-shrink: 0;
-        }
-        .group-header {
-            background-color: var(--vscode-editor-background);
-            font-weight: 600;
-            padding: 8px;
-            border-bottom: 1px solid var(--vscode-widget-border);
-        }
-        .group-toggle {
-            cursor: pointer;
-            user-select: none;
-        }
-        .category-badge {
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-size: 10px;
-            white-space: nowrap;
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-        }
-        .category-badge svg {
-            width: 11px;
-            height: 11px;
-        }
-        .status-icon {
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-        }
-        .status-icon svg {
-            width: 12px;
-            height: 12px;
-        }
-        .note-file {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .note-line {
-            flex-shrink: 0;
-        }
-        .note-date {
-            flex-shrink: 0;
-        }
-        .note-preview-row {
-            font-size: 11px;
-            color: var(--vscode-foreground);
-            opacity: 0.75;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .action-btn {
-            background: transparent;
-            border: none;
-            color: var(--vscode-foreground);
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 2px;
-            opacity: 0.7;
-            font-size: 11px;
-        }
-        .action-btn:hover {
-            opacity: 1;
-            background-color: var(--vscode-toolbar-hoverBackground);
-        }
-        .action-btn.danger:hover {
-            background-color: var(--vscode-inputValidation-errorBackground);
-        }
-        .empty-state {
-            text-align: center;
-            padding: 24px;
-            color: var(--vscode-descriptionForeground);
-        }
-        input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
-        }
-        .action-btn svg {
-            width: 14px;
-            height: 14px;
-            vertical-align: middle;
-        }
-        .empty-state-icon svg {
-            width: 32px;
-            height: 32px;
-        }
-        /* Custom dropdown styles */
-        .custom-dropdown {
-            position: relative;
-        }
-        .custom-dropdown-trigger {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 8px;
-            background-color: var(--vscode-dropdown-background);
-            border: 1px solid var(--vscode-dropdown-border);
-            color: var(--vscode-dropdown-foreground);
-            border-radius: 4px;
-            font-size: 11px;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        .custom-dropdown-trigger:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        .custom-dropdown-trigger svg {
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-        }
-        .custom-dropdown-trigger .arrow {
-            margin-left: 4px;
-            font-size: 8px;
-        }
-        .custom-dropdown-menu {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            min-width: 100%;
-            background-color: var(--vscode-dropdown-background);
-            border: 1px solid var(--vscode-dropdown-border);
-            border-radius: 4px;
-            margin-top: 2px;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-        .custom-dropdown.open .custom-dropdown-menu {
-            display: block;
-        }
-        .custom-dropdown-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 8px;
-            cursor: pointer;
-            font-size: 11px;
-            white-space: nowrap;
-        }
-        .custom-dropdown-item:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        .custom-dropdown-item.selected {
-            background-color: var(--vscode-list-activeSelectionBackground);
-            color: var(--vscode-list-activeSelectionForeground);
-        }
-        .custom-dropdown-item svg {
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-        }
-    </style>
-</head>
-<body>
-    <div class="toolbar">
-        <input type="text" class="search-box" id="searchBox" placeholder="Search notes..." value="${escapeHtml(this.searchText)}">
-        <div class="custom-dropdown" id="categoryFilterDropdown">
-            <div class="custom-dropdown-trigger" data-dropdown-target="categoryFilterDropdown">
-                ${categoryFilterTrigger}<span class="arrow">▼</span>
-            </div>
-            <div class="custom-dropdown-menu">
-                ${categoryFilterItems}
-            </div>
-        </div>
-        <div class="custom-dropdown" id="statusFilterDropdown">
-            <div class="custom-dropdown-trigger" data-dropdown-target="statusFilterDropdown">
-                ${statusFilterTrigger}<span class="arrow">▼</span>
-            </div>
-            <div class="custom-dropdown-menu">
-                ${statusFilterItems}
-            </div>
-        </div>
-        <select class="filter-select" id="groupBy">
-            ${groupByOptions}
-        </select>
-    </div>
-
-    <div class="stats">
-        <span>Showing ${filteredCount} of ${totalCount} notes</span>
-        <span class="storage-indicator">
-            .vscode/notes/
-        </span>
-    </div>
-
-    <div class="bulk-actions ${this.selectedNotes.size === 0 ? 'hidden' : ''}" id="bulkActions">
-        <span id="selectedCount">${this.selectedNotes.size} selected</span>
-        <div class="custom-dropdown" id="bulkCategoryDropdown">
-            <div class="custom-dropdown-trigger" data-dropdown-target="bulkCategoryDropdown">
-                <span>Change Category...</span><span class="arrow">▼</span>
-            </div>
-            <div class="custom-dropdown-menu">
-                ${changeCategoryItems}
-            </div>
-        </div>
-        <button class="btn btn-danger" id="deleteSelectedBtn">Delete Selected</button>
-    </div>
-
-    <div class="table-container">
-        ${
-			notes.length > 0
-				? tableHtml
-				: `
-        <div class="empty-state">
-            <div class="empty-state-icon">${Icons.notepadText.replace('width="18"', 'width="32"').replace('height="18"', 'height="32"')}</div>
-            <div>No notes found</div>
-            <div style="margin-top: 4px;">Add notes to your code by right-clicking on a line</div>
-        </div>
-        `
-		}
-    </div>
-
-    <script nonce="${nonce}">
-        const vscode = acquireVsCodeApi();
-
-        // Search
-        let searchTimeout;
-        document.getElementById('searchBox').addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                vscode.postMessage({ command: 'search', text: e.target.value });
-            }, 300);
-        });
-
-        function setDropdownTrigger(trigger, item) {
-            const labelNode = item.querySelector('span');
-            const labelText = labelNode ? labelNode.textContent : '';
-
-            trigger.textContent = '';
-
-            const sourceIcon = item.querySelector('svg');
-            if (sourceIcon) {
-                trigger.appendChild(sourceIcon.cloneNode(true));
-            }
-
-            const label = document.createElement('span');
-            label.textContent = labelText;
-            trigger.appendChild(label);
-
-            const arrow = document.createElement('span');
-            arrow.className = 'arrow';
-            arrow.textContent = '▼';
-            trigger.appendChild(arrow);
-        }
-
-        // Custom dropdown toggle
-        function toggleDropdown(dropdownId) {
-            const dropdown = document.getElementById(dropdownId);
-            const isOpen = dropdown.classList.contains('open');
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
-            if (!isOpen) {
-                dropdown.classList.add('open');
-            }
-        }
-
-        // Close dropdowns when clicking outside (use mousedown to fire before native controls capture the event)
-        document.addEventListener('mousedown', function(e) {
-            if (!e.target.closest('.custom-dropdown')) {
-                document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
-            }
-        });
-
-        // Close dropdowns when webview loses focus (e.g. clicking in the editor)
-        window.addEventListener('blur', function() {
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => d.classList.remove('open'));
-        });
-
-        document.querySelectorAll('.custom-dropdown-trigger[data-dropdown-target]').forEach(trigger => {
-            trigger.addEventListener('click', (e) => {
-                const targetId = e.currentTarget.dataset.dropdownTarget;
-                if (targetId) {
-                    toggleDropdown(targetId);
-                }
-            });
-        });
-
-        document.getElementById('deleteSelectedBtn').addEventListener('click', () => {
-            deleteSelected();
-        });
-
-        // Category filter dropdown items
-        document.querySelectorAll('#categoryFilterDropdown .custom-dropdown-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const value = this.dataset.value;
-                const trigger = document.querySelector('#categoryFilterDropdown .custom-dropdown-trigger');
-                setDropdownTrigger(trigger, this);
-                document.querySelectorAll('#categoryFilterDropdown .custom-dropdown-item').forEach(i => i.classList.remove('selected'));
-                this.classList.add('selected');
-                document.getElementById('categoryFilterDropdown').classList.remove('open');
-                vscode.postMessage({ command: 'filterCategory', category: value });
-            });
-        });
-
-        // Bulk category change dropdown items
-        document.querySelectorAll('#bulkCategoryDropdown .custom-dropdown-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const value = this.dataset.value;
-                document.getElementById('bulkCategoryDropdown').classList.remove('open');
-                vscode.postMessage({ command: 'changeCategorySelected', category: value });
-            });
-        });
-
-        // Status filter dropdown items
-        document.querySelectorAll('#statusFilterDropdown .custom-dropdown-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const value = this.dataset.value;
-                const trigger = document.querySelector('#statusFilterDropdown .custom-dropdown-trigger');
-                setDropdownTrigger(trigger, this);
-                document.querySelectorAll('#statusFilterDropdown .custom-dropdown-item').forEach(i => i.classList.remove('selected'));
-                this.classList.add('selected');
-                document.getElementById('statusFilterDropdown').classList.remove('open');
-                vscode.postMessage({ command: 'filterStatus', status: value });
-            });
-        });
-
-        document.getElementById('groupBy').addEventListener('change', (e) => {
-            vscode.postMessage({ command: 'groupBy', groupBy: e.target.value });
-        });
-
-        // Navigation (single click - navigate to line only)
-        function navigateToNote(noteId) {
-            vscode.postMessage({ command: 'navigate', noteId });
-        }
-
-        // Open note editor (double click - navigate and show editor)
-        function openNoteEditor(noteId) {
-            vscode.postMessage({ command: 'openEditor', noteId });
-        }
-
-        // Selection
-        function toggleSelection(noteId, checked) {
-            vscode.postMessage({ command: 'selectNote', noteId, selected: checked });
-            updateBulkActions();
-        }
-
-        function toggleSelectAll(checked) {
-            vscode.postMessage({ command: 'selectAll', selected: checked });
-        }
-
-        function updateBulkActions() {
-            const checkboxes = document.querySelectorAll('.note-checkbox:checked');
-            const bulkActions = document.getElementById('bulkActions');
-            const selectedCount = document.getElementById('selectedCount');
-
-            if (selectedCount) {
-                selectedCount.textContent = checkboxes.length + ' selected';
-            }
-            if (checkboxes.length > 0) {
-                bulkActions.classList.remove('hidden');
-            } else {
-                bulkActions.classList.add('hidden');
-            }
-        }
-
-        // Delete
-        function deleteNote(noteId, event) {
-            event.stopPropagation();
-            vscode.postMessage({ command: 'deleteNote', noteId });
-        }
-
-        function deleteSelected() {
-            vscode.postMessage({ command: 'deleteSelected' });
-        }
-
-        // Group toggle
-        function toggleGroup(groupId) {
-            const rows = document.querySelectorAll('[data-group="' + groupId + '"]');
-            const toggle = document.getElementById('toggle-' + groupId);
-            const isHidden = rows[0]?.style.display === 'none';
-            
-            rows.forEach(row => {
-                row.style.display = isHidden ? '' : 'none';
-            });
-            
-            toggle.textContent = isHidden ? '▼' : '▶';
-        }
-
-        document.addEventListener('click', (event) => {
-            const target = event.target;
-
-            const groupToggle = target.closest('.group-toggle[data-group-id]');
-            if (groupToggle) {
-                event.stopPropagation();
-                toggleGroup(groupToggle.dataset.groupId);
-                return;
-            }
-
-            const deleteBtn = target.closest('.delete-note-btn[data-note-id]');
-            if (deleteBtn) {
-                event.stopPropagation();
-                deleteNote(deleteBtn.dataset.noteId, event);
-                return;
-            }
-
-            const checkboxCol = target.closest('.note-checkbox-col');
-            if (checkboxCol) {
-                event.stopPropagation();
-                return;
-            }
-
-            const row = target.closest('.note-row[data-note-id]');
-            if (row) {
-                navigateToNote(row.dataset.noteId);
-            }
-        });
-
-        document.addEventListener('dblclick', (event) => {
-            const row = event.target.closest('.note-row[data-note-id]');
-            if (!row) {
-                return;
-            }
-            event.preventDefault();
-            openNoteEditor(row.dataset.noteId);
-        });
-
-        document.querySelectorAll('.note-checkbox[data-note-id]').forEach((checkbox) => {
-            checkbox.addEventListener('change', (event) => {
-                const input = event.currentTarget;
-                toggleSelection(input.dataset.noteId, input.checked);
-            });
-        });
-    </script>
-</html>`;
-	}
-
-	/**
-	 * Generate table HTML for grouped notes
-	 */
-	private generateTableHtml(groupedNotes: Map<string, Note[]>): string {
-		const rows: string[] = [];
-		let groupIndex = 0;
-
-		rows.push('<div class="notes-container">');
-
-		for (const [groupName, notes] of groupedNotes) {
-			const groupId = `group-${groupIndex++}`;
-
-			if (this.groupBy !== 'none') {
-				rows.push(`
-                <div class="group-header">
-                    <span class="group-toggle" data-group-id="${groupId}" id="toggle-${groupId}">▼</span>
-                    ${escapeHtml(groupName)} (${notes.length})
-                </div>
-                `);
-			}
-
-			for (const note of notes) {
-				const categoryConfig = CATEGORY_CONFIG[note.category];
-				const isOrphaned = note.status === 'orphaned';
-				const isSelected = this.selectedNotes.has(note.id);
-				const createdDate = new Date(note.createdAt).toLocaleDateString();
-
-				rows.push(`
-                <div class="note-row" data-group="${groupId}" data-note-id="${note.id}">
-                    <div class="note-checkbox-col">
-                        <input type="checkbox" class="note-checkbox" 
-                               data-note-id="${note.id}"
-                               ${isSelected ? 'checked' : ''} 
-                               >
-                    </div>
-                    <div class="note-status-col">
-                        <span class="status-icon ${isOrphaned ? 'status-orphaned' : ''}" title="${isOrphaned ? 'Orphaned' : 'Active'}">
-                            ${this.getStatusIcon(note.status)}
-                        </span>
-                    </div>
-                    <div class="note-content-col">
-                        <div class="note-first-row">
-                            <span class="category-badge category-${note.category}">
-                                ${this.getCategoryIcon(note.category)} ${categoryConfig.label}
-                            </span>
-                            <span class="note-file" title="${escapeHtml(note.filePath)}">
-                                ${escapeHtml(note.filePath)}
-                            </span>
-                        </div>
-                        <div class="note-second-row">
-                            <span class="note-line">Line ${note.lineNumber + 1}</span>
-                            <span>•</span>
-                            <span class="note-date">${createdDate}</span>
-                        </div>
-                        <div class="note-preview-row" title="${escapeHtml(note.text)}">${escapeHtml(note.text.length > 90 ? note.text.substring(0, 90) + '\u2026' : note.text)}</div>
-                    </div>
-                    <div class="note-actions-col">
-                        <button class="action-btn danger delete-note-btn" data-note-id="${note.id}" title="Delete">${Icons.trash2.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"')}</button>
-                    </div>
-                </div>
-                `);
-			}
-		}
-
-		rows.push('</div>');
-		return rows.join('');
-	}
-
-	/**
-	 * Get SVG icon for a status (14px for dropdowns)
-	 */
-	private getStatusIconDropdown(status: NoteStatus): string {
-		const iconMap: Record<string, string> = {
-			active: Icons.badgeCheck,
-			orphaned: Icons.badgeAlert,
-		};
-		const icon = iconMap[status] || Icons.badgeCheck;
-		return icon.replace('width="24"', 'width="14"').replace('height="24"', 'height="14"');
-	}
-
-	/**
-	 * Get SVG icon for a status (12px for table rows)
-	 */
-	private getStatusIcon(status: NoteStatus): string {
-		const iconMap: Record<string, string> = {
-			active: Icons.badgeCheck,
-			orphaned: Icons.badgeAlert,
-		};
-		const icon = iconMap[status] || Icons.badgeCheck;
-		return icon.replace('width="24"', 'width="12"').replace('height="24"', 'height="12"');
-	}
-
-	/**
-	 * Get SVG icon for a category (14px for dropdowns)
-	 */
-	private getCategoryIconDropdown(category: NoteCategory): string {
-		const iconMap: Record<string, string> = {
-			note: Icons.notepadText,
-			todo: Icons.listTodo,
-			fixme: Icons.locateFixed,
-			question: Icons.fileQuestion,
-		};
-		const icon = iconMap[category] || Icons.notepadText;
-		return icon.replace('width="18"', 'width="14"').replace('height="18"', 'height="14"');
-	}
-
-	/**
-	 * Get SVG icon for a category
-	 */
-	private getCategoryIcon(category: NoteCategory): string {
-		const iconMap: Record<string, string> = {
-			note: Icons.notepadText,
-			todo: Icons.listTodo,
-			fixme: Icons.locateFixed,
-			question: Icons.fileQuestion,
-		};
-		const icon = iconMap[category] || Icons.notepadText;
-		return icon.replace('width="18"', 'width="11"').replace('height="18"', 'height="11"');
+		return notesTableHtml
+			.replace('{{cspMetaTag}}', cspMetaTag)
+			.replace('{{nonce}}', nonce)
+			.replace('{{scriptUri}}', scriptUri.toString());
 	}
 
 	/**

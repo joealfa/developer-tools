@@ -4,6 +4,20 @@ All notable changes to the "developer-tools" extension will be documented in thi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.8] - 2026-03-22
+
+### Fixed
+- **Complexity analyzer false positives** — `else if` was being counted three times (once by `/\bif\b/`, once by a separate `else if` pattern, once by `/\belse\b/`); removed the redundant patterns so each branch is counted exactly once
+- **`else` not a cyclomatic decision point** — standalone `else` was incorrectly contributing to cyclomatic complexity; removed from the pattern list
+- **`do`-`while` double-count** — `do` was counted separately in addition to the closing `while`, inflating complexity by 1 for every do-while loop; removed `do` from cyclomatic patterns
+- **Ternary regex matching optional chaining / nullish coalescing** — the `\?(?!=)` pattern matched `?.` and `??`; updated to `\?(?![=?.]>)` to exclude those operators
+- **Keywords inside comments inflating complexity** — added `stripLineComments` pre-processing to both cyclomatic and cognitive calculators so `//` and `#` comments no longer contribute to scores
+
+### Changed
+- **CSP nonce generation hardened** — `createWebviewNonce()` now uses `crypto.randomBytes(24).toString('base64url')` (192-bit cryptographic entropy) instead of the previous `Math.random()`-based loop
+- **Notes validation consolidated** — duplicate `isRecord`, `isValidNote`, and `isValidStorageData` helpers that existed independently in `notesRepository.ts` and `notesExportService.ts` are now the single shared implementations exported from `notes/types.ts`
+- **Session Tracker O(n²) → O(1) per event** — replaced the `computeSummaries()` full-scan on every edit with an incremental `fileSummaryMap` that updates only the touched file in O(1); full rebuild from events is retained only for crash-recovery
+
 ## [1.0.7] - 2026-03-21
 
 ### Added

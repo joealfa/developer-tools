@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{cspMetaTag}}
+    <title>Port Manager</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--vscode-font-family);
+            padding: 12px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-sideBar-background);
+            font-size: 12px;
+        }
+        .toolbar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        .search-input {
+            flex: 1;
+            padding: 4px 8px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-input-foreground);
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        .toolbar-btn {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .toolbar-btn:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+        .toolbar-btn.active {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .port-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .port-item {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 8px;
+        }
+        .port-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .port-number {
+            font-weight: bold;
+            font-size: 13px;
+            color: var(--vscode-foreground);
+        }
+        .port-meta {
+            color: var(--vscode-descriptionForeground);
+            font-size: 11px;
+        }
+        .port-command {
+            font-family: monospace;
+            font-size: 10px;
+            color: var(--vscode-descriptionForeground);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 4px;
+        }
+        .kill-btn {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 2px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .kill-btn:hover {
+            opacity: 0.9;
+        }
+        .confirm-kill {
+            display: none;
+            gap: 4px;
+            align-items: center;
+            font-size: 11px;
+        }
+        .confirm-kill.visible {
+            display: flex;
+        }
+        .confirm-yes {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+        .confirm-no {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 24px 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .empty-state p {
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <input type="text" class="search-input" id="filterInput" placeholder="Filter by port or process...">
+        <button class="toolbar-btn" id="refreshBtn" title="Refresh">Refresh</button>
+        <button class="toolbar-btn" id="autoRefreshBtn" title="Toggle auto-refresh">Auto</button>
+    </div>
+    <div id="portList" class="port-list">
+        <div class="empty-state">
+            <p>Scanning ports...</p>
+        </div>
+    </div>
+
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

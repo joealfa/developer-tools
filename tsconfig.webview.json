@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"module": "ES2022",
+		"target": "ES2022",
+		"lib": [
+			"ES2022",
+			"DOM"
+		],
+		"strict": true,
+		"noEmit": true
+	},
+	"include": [
+		"src/webview-scripts/**/*"
+	]
+}

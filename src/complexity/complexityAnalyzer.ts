@@ -227,23 +227,25 @@ export class ComplexityAnalyzer {
 	private calculateCyclomaticComplexity(body: string, language: SupportedLanguage): number {
 		let complexity = 1;
 
+		const stripped = this.stripLineComments(body, language);
+
 		// Control flow keywords
 		const patterns = this.getCyclomaticPatterns(language);
 		for (const pattern of patterns) {
-			const matches = body.match(pattern);
+			const matches = stripped.match(pattern);
 			if (matches) {
 				complexity += matches.length;
 			}
 		}
 
 		// Logical operators
-		const logicalOps = body.match(/&&|\|\|/g);
+		const logicalOps = stripped.match(/&&|\|\|/g);
 		if (logicalOps) {
 			complexity += logicalOps.length;
 		}
 
-		// Ternary operator
-		const ternary = body.match(/\?(?!=)/g);
+		// Ternary operator — exclude optional chaining (?.) and nullish coalescing (??)
+		const ternary = stripped.match(/\?(?![=?.>])/g);
 		if (ternary) {
 			complexity += ternary.length;
 		}
@@ -257,7 +259,7 @@ export class ComplexityAnalyzer {
 				return [
 					/\bif\b/g,
 					/\belif\b/g,
-					/\belse\b/g,
+					// 'else' is not a decision point — it is the default path
 					/\bfor\b/g,
 					/\bwhile\b/g,
 					/\bexcept\b/g,
@@ -265,32 +267,44 @@ export class ComplexityAnalyzer {
 					/\bor\b/g,
 				];
 			case 'go':
-				return [/\bif\b/g, /\belse\b/g, /\bfor\b/g, /\bcase\b/g, /\bselect\b/g];
+				// 'else' is not a decision point; counted via the if branch
+				return [/\bif\b/g, /\bfor\b/g, /\bcase\b/g, /\bselect\b/g];
 			case 'rust':
-				return [
-					/\bif\b/g,
-					/\belse\b/g,
-					/\bfor\b/g,
-					/\bwhile\b/g,
-					/\bloop\b/g,
-					/\bmatch\b/g,
-				];
+				return [/\bif\b/g, /\bfor\b/g, /\bwhile\b/g, /\bloop\b/g, /\bmatch\b/g];
 			default: // JS/TS, Java, C#
 				return [
+					// 'if' already covers 'else if' — no separate pattern needed
 					/\bif\b/g,
-					/\belse\s+if\b/g,
-					/\belse\b/g,
+					// 'else' alone is not a decision point in cyclomatic complexity
 					/\bfor\b/g,
 					/\bwhile\b/g,
-					/\bdo\b/g,
+					// 'do' is the loop header but the decision is the trailing 'while' — avoid double count
 					/\bcase\b/g,
 					/\bcatch\b/g,
 				];
 		}
 	}
 
+	/**
+	 * Strip single-line comments from source text to prevent keywords inside
+	 * comments from inflating complexity scores.
+	 */
+	private stripLineComments(body: string, language: SupportedLanguage): string {
+		const commentStart = language === 'python' ? '#' : '//';
+		return body
+			.split('\n')
+			.map((line) => {
+				// Naive strip: remove from comment marker to end of line.
+				// Does not handle the marker inside a string literal, but
+				// eliminates the most common source of false positives.
+				const idx = line.indexOf(commentStart);
+				return idx === -1 ? line : line.slice(0, idx);
+			})
+			.join('\n');
+	}
+
 	calculateCognitiveComplexity(body: string, language: SupportedLanguage): number {
-		const lines = body.split('\n');
+		const lines = this.stripLineComments(body, language).split('\n');
 		let complexity = 0;
 		let nestingLevel = 0;
 		const nestingStack: string[] = [];

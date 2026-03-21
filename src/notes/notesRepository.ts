@@ -4,7 +4,16 @@
  */
 
 import * as vscode from 'vscode';
-import { Note, NotesStorageData, STORAGE_VERSION, STORAGE_KEYS, STORAGE_FILES } from './types';
+import {
+	Note,
+	NotesStorageData,
+	STORAGE_VERSION,
+	STORAGE_KEYS,
+	STORAGE_FILES,
+	isRecord,
+	isValidNote,
+	isValidStorageData,
+} from './types';
 
 export class NotesRepository {
 	private context: vscode.ExtensionContext;
@@ -123,7 +132,7 @@ export class NotesRepository {
 		try {
 			const content = await vscode.workspace.fs.readFile(fileUri);
 			const parsed = JSON.parse(content.toString()) as unknown;
-			if (!this.isValidStorageData(parsed)) {
+			if (!isValidStorageData(parsed)) {
 				return [];
 			}
 			const data: NotesStorageData = parsed;
@@ -245,76 +254,19 @@ export class NotesRepository {
 		this.pendingRejectors = [];
 	}
 
-	private isValidStorageData(value: unknown): value is NotesStorageData {
-		if (
-			!this.isRecord(value) ||
-			typeof value.version !== 'number' ||
-			!Array.isArray(value.notes)
-		) {
-			return false;
-		}
-
-		return value.notes.every((note) => this.isValidNote(note));
-	}
-
 	private extractValidNotes(value: unknown): Note[] {
-		if (this.isValidStorageData(value)) {
+		if (isValidStorageData(value)) {
 			return value.notes;
 		}
 
 		if (Array.isArray(value)) {
-			return value.filter((note): note is Note => this.isValidNote(note));
+			return value.filter((note): note is Note => isValidNote(note));
 		}
 
-		if (this.isRecord(value) && Array.isArray(value.notes)) {
-			return value.notes.filter((note): note is Note => this.isValidNote(note));
+		if (isRecord(value) && Array.isArray(value.notes)) {
+			return value.notes.filter((note): note is Note => isValidNote(note));
 		}
 
 		return [];
-	}
-
-	private isValidNote(value: unknown): value is Note {
-		if (!this.isRecord(value)) {
-			return false;
-		}
-
-		const validCategory =
-			value.category === 'note' ||
-			value.category === 'todo' ||
-			value.category === 'fixme' ||
-			value.category === 'question';
-		const validStatus = value.status === 'active' || value.status === 'orphaned';
-
-		if (!this.isRecord(value.surroundingContext)) {
-			return false;
-		}
-
-		const lineBeforeOk =
-			!Object.prototype.hasOwnProperty.call(value.surroundingContext, 'lineBefore') ||
-			typeof value.surroundingContext.lineBefore === 'string';
-		const lineAfterOk =
-			!Object.prototype.hasOwnProperty.call(value.surroundingContext, 'lineAfter') ||
-			typeof value.surroundingContext.lineAfter === 'string';
-
-		return (
-			typeof value.id === 'string' &&
-			typeof value.filePath === 'string' &&
-			typeof value.lineNumber === 'number' &&
-			Number.isInteger(value.lineNumber) &&
-			value.lineNumber >= 0 &&
-			typeof value.lineContent === 'string' &&
-			typeof value.lineContentHash === 'string' &&
-			typeof value.text === 'string' &&
-			validCategory &&
-			validStatus &&
-			typeof value.createdAt === 'string' &&
-			typeof value.updatedAt === 'string' &&
-			lineBeforeOk &&
-			lineAfterOk
-		);
-	}
-
-	private isRecord(value: unknown): value is Record<string, unknown> {
-		return typeof value === 'object' && value !== null;
 	}
 }

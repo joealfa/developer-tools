@@ -37,7 +37,7 @@ Direct insert commands support four formats; the `Generate & Insert UUID/GUID or
 Generate cryptographically secure passwords in the sidebar. Uses Node.js `crypto` with rejection sampling to eliminate modulo bias.
 
 **Options:**
-- Length: 5–128 characters (default 14)
+- Length: 5-128 characters (default 14)
 - Character sets: Uppercase, Lowercase, Numbers, Special (`!@#$%^&*`)
 - Minimum counts for numbers and special characters (default: 2 numbers, 2 special)
 - Avoid ambiguous characters (`0`, `O`, `I`, `l`, `1`)
@@ -201,16 +201,18 @@ async function processData(items) {   ⊘ CC:14 COG:18
 | Analyze File Complexity | Force re-analysis of the current file |
 | Show Complexity Report | Print a sorted complexity report to the Output panel |
 
-> **Note:** Analysis uses regex-based heuristics (not an AST), so accuracy may vary for unusual code patterns. Files over 10,000 lines are skipped for performance.
+> **Note:** Analysis uses regex-based heuristics (not an AST). Comments are stripped before scoring to prevent false positives. Accuracy may still vary for unusual code patterns. Files over 10,000 lines are skipped for performance.
 
 ---
 
-## Latest Update (v1.0.7)
+## Latest Update (v1.0.8)
 
-- Strengthened default password composition requirements (minimum 2 numbers and 2 special characters)
-- Hardened all webviews with CSP + nonce support and stricter message validation
-- Improved Notes and Session JSON parsing/validation for better resilience against malformed files
-- Improved Port Manager reliability with queued scans, PID validation, and process-kill timeouts
+- Fixed complexity analyzer false positives — `else if`, standalone `else`, and `do` were being over-counted; each control-flow branch is now counted exactly once
+- Fixed ternary regex incorrectly matching optional chaining (`?.`) and nullish coalescing (`??`)
+- Added comment stripping to complexity analysis so keywords inside `//` or `#` comments no longer inflate scores
+- Hardened CSP nonce generation to use `crypto.randomBytes` (192-bit entropy) instead of `Math.random()`
+- Consolidated duplicate notes validation helpers (`isRecord`, `isValidNote`, `isValidStorageData`) into a single shared source of truth
+- Improved Session Tracker performance: per-event work is now O(1) instead of O(n) for long sessions
 
 ---
 

@@ -15,7 +15,7 @@ A productivity toolkit for developers: UUID/GUID generation, secure password gen
 
 ### Password Generator
 - Sidebar webview with live preview
-- Configurable length (5–128), character sets (upper, lower, numbers, special)
+- Configurable length (5-128), character sets (upper, lower, numbers, special)
 - Minimum number/special character requirements
 - Avoid ambiguous characters option (0, O, l, 1, I, etc.)
 - Cryptographically secure RNG using `crypto.randomBytes` with rejection sampling (no modulo bias)

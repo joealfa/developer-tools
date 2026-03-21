@@ -127,6 +127,62 @@ export interface NotesChangeEvent {
 	filePaths: string[];
 }
 
+// ─── Shared validation helpers ────────────────────────────────────────────────
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+export function isValidNote(value: unknown): value is Note {
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	const validCategory =
+		value.category === 'note' ||
+		value.category === 'todo' ||
+		value.category === 'fixme' ||
+		value.category === 'question';
+	const validStatus = value.status === 'active' || value.status === 'orphaned';
+
+	if (!isRecord(value.surroundingContext)) {
+		return false;
+	}
+
+	const lineBeforeOk =
+		!Object.prototype.hasOwnProperty.call(value.surroundingContext, 'lineBefore') ||
+		typeof value.surroundingContext.lineBefore === 'string';
+	const lineAfterOk =
+		!Object.prototype.hasOwnProperty.call(value.surroundingContext, 'lineAfter') ||
+		typeof value.surroundingContext.lineAfter === 'string';
+
+	return (
+		typeof value.id === 'string' &&
+		typeof value.filePath === 'string' &&
+		typeof value.lineNumber === 'number' &&
+		Number.isInteger(value.lineNumber) &&
+		value.lineNumber >= 0 &&
+		typeof value.lineContent === 'string' &&
+		typeof value.lineContentHash === 'string' &&
+		typeof value.text === 'string' &&
+		validCategory &&
+		validStatus &&
+		typeof value.createdAt === 'string' &&
+		typeof value.updatedAt === 'string' &&
+		lineBeforeOk &&
+		lineAfterOk
+	);
+}
+
+export function isValidStorageData(value: unknown): value is NotesStorageData {
+	if (!isRecord(value) || typeof value.version !== 'number' || !Array.isArray(value.notes)) {
+		return false;
+	}
+	return value.notes.every((note) => isValidNote(note));
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 /**
  * Current storage schema version
  */

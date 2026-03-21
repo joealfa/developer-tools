@@ -24,7 +24,8 @@ const esbuildProblemMatcherPlugin = {
 };
 
 async function main() {
-	const ctx = await esbuild.context({
+	// Extension host bundle — Node.js, runs in the extension process
+	const extensionCtx = await esbuild.context({
 		entryPoints: [
 			'src/extension.ts'
 		],
@@ -36,17 +37,41 @@ async function main() {
 		platform: 'node',
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
+		// .html files imported as raw strings (webview HTML templates)
+		loader: { '.html': 'text' },
 		logLevel: 'silent',
 		plugins: [
-			/* add to the end of plugins array */
 			esbuildProblemMatcherPlugin,
 		],
 	});
+
+	// Webview scripts bundle — browser context, one output file per webview
+	const webviewCtx = await esbuild.context({
+		entryPoints: [
+			'src/webview-scripts/passwordGenerator.ts',
+			'src/webview-scripts/portManager.ts',
+			'src/webview-scripts/sessionTracker.ts',
+			'src/webview-scripts/noteEditor.ts',
+			'src/webview-scripts/notesTable.ts',
+		],
+		bundle: true,
+		format: 'iife',      // self-contained browser bundle, no require()
+		platform: 'browser', // no Node.js globals
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		outdir: 'dist/webview-scripts',
+		logLevel: 'silent',
+		plugins: [
+			esbuildProblemMatcherPlugin,
+		],
+	});
+
 	if (watch) {
-		await ctx.watch();
+		await Promise.all([extensionCtx.watch(), webviewCtx.watch()]);
 	} else {
-		await ctx.rebuild();
-		await ctx.dispose();
+		await Promise.all([extensionCtx.rebuild(), webviewCtx.rebuild()]);
+		await Promise.all([extensionCtx.dispose(), webviewCtx.dispose()]);
 	}
 }
 

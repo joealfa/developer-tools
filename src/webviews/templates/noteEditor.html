@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{cspMetaTag}}
+    <title>Note Editor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: var(--vscode-font-family);
+            padding: 12px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-sideBar-background);
+        }
+        .location-info {
+            padding: 8px 12px;
+            background-color: var(--vscode-editor-background);
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .location-file {
+            font-weight: bold;
+            color: var(--vscode-foreground);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+        }
+        .location-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .location-line {
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .location-path {
+            margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 10px;
+        }
+        .note-card {
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .category-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .category-badge svg {
+            width: 11px;
+            height: 11px;
+        }
+        .note-text {
+            width: 100%;
+            min-height: 80px;
+            padding: 8px;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-input-foreground);
+            border-radius: 4px;
+            font-size: 12px;
+            resize: vertical;
+            font-family: var(--vscode-font-family);
+        }
+        .note-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 10px;
+        }
+        .note-date {
+            color: var(--vscode-descriptionForeground);
+        }
+        .category-select {
+            padding: 4px 8px;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-input-foreground);
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        .add-note-section {
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 12px;
+        }
+        .add-note-accordion {
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            background-color: var(--vscode-input-background);
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .add-note-summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 12px;
+            font-weight: bold;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+        .add-note-summary::-webkit-details-marker {
+            display: none;
+        }
+        .add-note-summary::after {
+            content: '▸';
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            transition: transform 120ms ease;
+        }
+        .add-note-accordion[open] .add-note-summary::after {
+            transform: rotate(90deg);
+        }
+        .add-note-accordion-body {
+            padding: 0 12px 12px 12px;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .form-group {
+            margin-bottom: 8px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .btn {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            opacity: 0.7;
+        }
+        .icon-btn:hover {
+            opacity: 1;
+            background-color: var(--vscode-toolbar-hoverBackground);
+        }
+        .icon-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+        .empty-state {
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

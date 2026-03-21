@@ -13,6 +13,8 @@ export class SessionService implements vscode.Disposable {
 	private currentSession: SessionSnapshot | null = null;
 	private persistDebounceTimer: NodeJS.Timeout | undefined;
 	private idleTimeoutMinutes: number;
+	/** Running per-file summaries — updated incrementally on each recordEvent. */
+	private fileSummaryMap = new Map<string, FileSessionSummary>();
 
 	private readonly _onDidChangeSession = new vscode.EventEmitter<SessionSnapshot | null>();
 	public readonly onDidChangeSession = this._onDidChangeSession.event;
@@ -60,7 +62,8 @@ export class SessionService implements vscode.Disposable {
 			current.events.length > 0
 				? current.events[current.events.length - 1].timestamp
 				: current.startedAt;
-		current.files = this.computeSummaries(current.events);
+		// Rebuild summaries from the persisted events (one-time, on recovery only)
+		current.files = this.buildSummariesFromEvents(current.events);
 		current.totalEstimatedTimeMs = this.computeTotalTime(current.files);
 
 		await this.repository.moveToHistory(current);
@@ -68,6 +71,7 @@ export class SessionService implements vscode.Disposable {
 	}
 
 	startSession(): void {
+		this.fileSummaryMap.clear();
 		this.currentSession = {
 			id: crypto.randomUUID(),
 			startedAt: Date.now(),
@@ -88,11 +92,13 @@ export class SessionService implements vscode.Disposable {
 
 		this.currentSession.endedAt = Date.now();
 		this.currentSession.status = 'completed';
-		this.currentSession.files = this.computeSummaries(this.currentSession.events);
+		// Summaries are already up-to-date from incremental updates
+		this.currentSession.files = this.sortedSummaries();
 		this.currentSession.totalEstimatedTimeMs = this.computeTotalTime(this.currentSession.files);
 
 		await this.repository.moveToHistory(this.currentSession);
 		this.currentSession = null;
+		this.fileSummaryMap.clear();
 		this._onDidChangeSession.fire(null);
 	}
 
@@ -100,6 +106,7 @@ export class SessionService implements vscode.Disposable {
 		if (!this.currentSession) {
 			return;
 		}
+		this.fileSummaryMap.clear();
 		this.currentSession = {
 			id: crypto.randomUUID(),
 			startedAt: Date.now(),
@@ -118,7 +125,8 @@ export class SessionService implements vscode.Disposable {
 			return;
 		}
 		this.currentSession.events.push(event);
-		this.currentSession.files = this.computeSummaries(this.currentSession.events);
+		this.updateFileSummary(event);
+		this.currentSession.files = this.sortedSummaries();
 		this.currentSession.totalEstimatedTimeMs = this.computeTotalTime(this.currentSession.files);
 		this.persistCurrentSession();
 		this._onDidChangeSession.fire(this.currentSession);
@@ -218,21 +226,58 @@ export class SessionService implements vscode.Disposable {
 		}, 2000);
 	}
 
-	private computeSummaries(events: SessionEvent[]): FileSessionSummary[] {
+	/**
+	 * Incrementally update the summary for the file touched by `event`.
+	 * Called on every recordEvent — O(1) per call instead of O(total events).
+	 */
+	private updateFileSummary(event: SessionEvent): void {
+		const idleThresholdMs = this.idleTimeoutMinutes * 60 * 1000;
+		const existing = this.fileSummaryMap.get(event.filePath);
+
+		if (!existing) {
+			this.fileSummaryMap.set(event.filePath, {
+				filePath: event.filePath,
+				totalEdits: 1,
+				linesAdded: event.linesAdded,
+				linesRemoved: event.linesRemoved,
+				firstTouched: event.timestamp,
+				lastTouched: event.timestamp,
+				estimatedTimeMs: 0,
+			});
+			return;
+		}
+
+		const gap = event.timestamp - existing.lastTouched;
+		existing.totalEdits += 1;
+		existing.linesAdded += event.linesAdded;
+		existing.linesRemoved += event.linesRemoved;
+		existing.lastTouched = event.timestamp;
+		if (gap <= idleThresholdMs) {
+			existing.estimatedTimeMs += gap;
+		}
+	}
+
+	private sortedSummaries(): FileSessionSummary[] {
+		return [...this.fileSummaryMap.values()].sort((a, b) => b.estimatedTimeMs - a.estimatedTimeMs);
+	}
+
+	/**
+	 * Full rebuild from a list of events — used only when recovering a persisted session.
+	 */
+	private buildSummariesFromEvents(events: SessionEvent[]): FileSessionSummary[] {
+		const idleThresholdMs = this.idleTimeoutMinutes * 60 * 1000;
 		const fileMap = new Map<string, SessionEvent[]>();
 
 		for (const event of events) {
-			const existing = fileMap.get(event.filePath) ?? [];
-			existing.push(event);
-			fileMap.set(event.filePath, existing);
+			const bucket = fileMap.get(event.filePath) ?? [];
+			bucket.push(event);
+			fileMap.set(event.filePath, bucket);
 		}
 
 		const summaries: FileSessionSummary[] = [];
-		const idleThresholdMs = this.idleTimeoutMinutes * 60 * 1000;
 
 		for (const [filePath, fileEvents] of fileMap) {
-			const sorted = fileEvents.sort((a, b) => a.timestamp - b.timestamp);
-
+			const sorted = fileEvents.slice().sort((a, b) => a.timestamp - b.timestamp);
 			let linesAdded = 0;
 			let linesRemoved = 0;
 			let estimatedTimeMs = 0;
@@ -240,7 +285,6 @@ export class SessionService implements vscode.Disposable {
 			for (let i = 0; i < sorted.length; i++) {
 				linesAdded += sorted[i].linesAdded;
 				linesRemoved += sorted[i].linesRemoved;
-
 				if (i > 0) {
 					const gap = sorted[i].timestamp - sorted[i - 1].timestamp;
 					if (gap <= idleThresholdMs) {
@@ -264,7 +308,6 @@ export class SessionService implements vscode.Disposable {
 	}
 
 	private computeTotalTime(summaries: FileSessionSummary[]): number {
-		// Sum per-file time (already caps idle gaps)
 		return summaries.reduce((sum, f) => sum + f.estimatedTimeMs, 0);
 	}
 
